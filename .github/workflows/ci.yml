@@ -1,0 +1,66 @@
+name: IRIS Pipeline CI
+
+# Task 4: Trigger on every push and every pull request, across ALL branches.
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install dvc dvc-gs pandas scikit-learn joblib pytest
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Pull data and model with DVC
+        run: dvc pull
+
+      - name: Run tests
+        run: pytest tests/ -v
+
+      - name: Setup CML
+        uses: iterative/setup-cml@v2
+
+      - name: Create CML report
+        env:
+          REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "## IRIS Pipeline Test Report" > report.md
+          echo "" >> report.md
+          echo "### Test Results" >> report.md
+          pytest tests/ -v >> report.md 2>&1 || true
+          echo "" >> report.md
+          echo "### Model Evaluation Summary" >> report.md
+          python3 -c "
+          import joblib, pandas as pd
+          from sklearn import metrics
+          from sklearn.model_selection import train_test_split
+          model = joblib.load('model.joblib')
+          df = pd.read_csv('data/iris.csv')
+          _, eval_set = train_test_split(df, test_size=0.2, stratify=df['species'], random_state=42)
+          X_eval = eval_set[['sepal_length','sepal_width','petal_length','petal_width']]
+          y_eval = eval_set['species']
+          acc = metrics.accuracy_score(y_eval, model.predict(X_eval))
+          print(f'Accuracy: {acc:.3f}')
+          " >> report.md
+          cml comment create report.md
