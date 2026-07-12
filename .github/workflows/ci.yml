@@ -1,5 +1,8 @@
 name: IRIS Pipeline CI
 
+# Task 4: Trigger on every push and every pull request, across ALL branches.
+# No 'branches:' filter is specified below, so this runs regardless of
+# which branch the push or PR targets.
 on:
   push:
   pull_request:
