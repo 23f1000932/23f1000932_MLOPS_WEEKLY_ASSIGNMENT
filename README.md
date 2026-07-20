@@ -1,49 +1,41 @@
-# 23f1000932_MLOPS_WEEKLY_ASSIGNMENT — Week 3
+# 23f1000932_MLOPS_WEEKLY_ASSIGNMENT — Week 5
 
-## Feast Feature Store Integration for the IRIS Pipeline
+## MLflow Experiment Tracking & Model Registry for the IRIS Pipeline
 
-This branch (`week_3`) extends the IRIS pipeline with a **feature store layer**,
-using [Feast](https://feast.dev/), so that training and inference draw features
-from a single, consistent source — instead of the model reading raw CSV data
-directly.
+This branch (`week_5`) adds **MLflow** to the IRIS pipeline — tracking every
+training experiment's hyperparameters, metrics, and model artifacts, and
+introducing a central Model Registry that the evaluation pipeline now pulls
+from instead of DVC.
 
 ## Why This Was Needed
 
-In Week 2, DVC gave version control for data and model files — it answers
-*"which version of the data produced this model?"* But DVC does not address a
-different problem: *"how do I make sure training and real-time inference always
-see the exact same engineered features?"* If training reads a CSV one way and a
-production service computes features another way, small inconsistencies
-("training/serving skew") can silently degrade model quality. Feast solves this
-by sitting between raw data and the model, offering one place to define, store,
-and retrieve features — both for historical (offline) training and low-latency
-(online) inference.
+By Week 4, the pipeline had reproducible training, versioned data and models
+(DVC), consistent feature serving (Feast), and automatic testing on every push
+(CI). What was still missing: a structured way to compare different training
+configurations against each other, and a single source of truth for which
+model version is the "current" one. MLflow solves both — it logs every run's
+parameters and results so they can be compared side-by-side, and its Model
+Registry lets downstream code fetch a model by name and version instead of a
+manual file path.
 
 ## Objective
 
-1. Initialize a Feast feature repository within the existing IRIS project.
-2. Define an entity, a data source, and a feature view for the IRIS dataset.
-3. Register these definitions and materialize feature values into the online
-   store.
-4. Train the IRIS classifier using features fetched from Feast's **offline**
-   store — not the raw CSV.
-5. Simulate real-time inference by fetching features for specific samples from
-   Feast's **online** store, and verify the predictions are consistent with the
-   ground truth.
+1. Add hyperparameter tuning to the training loop, varying at least two
+   hyperparameters across multiple runs.
+2. Log every run's parameters, metrics, and trained model with MLflow.
+3. Compare the logged experiments visually in the MLflow Tracking UI.
+4. Remove model artifact tracking from DVC — models now live only in MLflow.
+5. Update the evaluation pipeline to fetch its model from the MLflow Model
+   Registry, resolved by name and version, instead of DVC or a local path.
 
-## Repository Structure (week_3 branch)
+## Repository Structure (relevant additions in week_5)
 
 ```
-iris_feature_repo/
-└── feature_repo/
-    ├── feature_store.yaml       # Feast config: local provider, SQLite backend
-    ├── iris_features.py         # Entity, data source, and feature view definitions
-    ├── data/
-    │   ├── iris.parquet         # IRIS data with iris_id + event_timestamp columns
-    │   ├── iris.parquet.csv     # Same data in CSV form (for easy inspection)
-    │   └── registry.db          # Feast registry (tracks applied definitions)
-    └── model_feast.joblib       # Model trained on features fetched from Feast
-23f1000932_Assignment_3_May2026_MLOps.ipynb   # Main notebook: all steps below
+train_mlflow.py             # Tasks 1 & 2: hyperparameter tuning + MLflow logging
+evaluate_from_registry.py   # Task 5: evaluation using a model from the registry
+mlflow.db                   # MLflow's SQLite tracking store (params, metrics, run info)
+mlruns/                     # MLflow's artifact store (logged models per run)
+.gitignore                  # Updated to exclude model.joblib (Task 4)
 README.md
 ```
 
@@ -51,75 +43,82 @@ README.md
 
 | File | Purpose |
 |---|---|
-| `feature_store.yaml` | Feast's core config file. Configured to use the **local** provider with a **SQLite** online store — no cloud backend needed for this assignment, keeping the setup simple and self-contained. |
-| `iris_features.py` | Defines the three building blocks Feast needs: an **Entity** (`iris_id`, uniquely identifying each flower sample), a **FileSource** (pointing at `data/iris.parquet`), and a **FeatureView** (`iris_features`, mapping the four numeric IRIS columns — sepal/petal length and width — to that entity and source). This file must exist on disk (not just as notebook variables) because `feast apply` scans `.py` files in the repo to discover definitions. |
-| `data/iris.parquet` / `iris.parquet.csv` | The IRIS dataset (180 rows — the augmented version carried over from Week 2) with two columns added: `iris_id` (a unique integer per row, used as the entity key) and `event_timestamp` (set to the notebook's run time for every row). Feast requires every row to have a timestamp since it's designed for data that changes over time; IRIS is static, so this timestamp is a placeholder rather than a meaningful "event time." |
-| `data/registry.db` | Feast's registry — created by `feast apply`, it records the entity and feature view definitions so Feast knows what's available to serve. |
-| `model_feast.joblib` | The trained `DecisionTreeClassifier`, fit on features retrieved via `store.get_historical_features(...)` rather than a direct `pd.read_csv()` call — this is the key behavioral change Task 4 asks for. |
-| `23f1000932_Assignment_3_May2026_MLOps.ipynb` | The full workflow: installing Feast, initializing the repo, defining features, applying/materializing them, training via the offline store, and running inference via the online store. |
+| `train_mlflow.py` | Trains four `DecisionTreeClassifier` models, each with a different combination of `max_depth` and `min_samples_split` (the two tuned hyperparameters). Each run is wrapped in `mlflow.start_run()`, logging its hyperparameters with `mlflow.log_param`, its accuracy/precision/recall with `mlflow.log_metric`, and the trained model itself with `mlflow.sklearn.log_model`. |
+| `evaluate_from_registry.py` | Loads a model directly from the MLflow Model Registry using `models:/iris_classifier/1` — a name-and-version URI — rather than reading any local file or DVC-tracked artifact. Runs it against the evaluation split and prints accuracy, precision, and recall to confirm the fetched model behaves identically to its original training run. |
+| `mlflow.db` | SQLite database MLflow uses as its tracking backend — stores every run's parameters, metrics, and metadata so they can be queried and compared in the UI. |
+| `mlruns/` | MLflow's artifact store — contains the actual serialized model files for each logged run. |
+| `.gitignore` | Updated to exclude `model.joblib` entirely, since models are no longer tracked as loose files or through DVC — MLflow is now the exclusive model store. |
 
 ## What Is NOT Included (by design)
 
-- `online_store.db` — Feast's own `.gitignore` excludes this, since it's a
-  regenerable local cache, similar in spirit to excluding raw data/model
-  binaries directly in Git during Week 1/2.
+- `model.joblib` — no longer committed to Git or tracked by DVC. The trained
+  model lives only inside MLflow's artifact store (`mlruns/`) and the
+  registry.
+- `model.joblib.dvc` — removed in Task 4, since DVC now tracks data only.
 - Video screencast — submitted separately per assignment instructions.
 
 ## Step-by-Step Summary of What Was Done
 
-1. **Branch setup** — Created `week_3` from `week_2`.
-2. **Task 1 — Initialize Feast**: Ran `feast init iris_feature_repo`, removed the
-   auto-generated example/demo files, and confirmed `feature_store.yaml` uses the
-   local/SQLite provider by default.
-3. **Task 2 — Define entity, source, feature view**: Copied the IRIS dataset in,
-   added `iris_id` and `event_timestamp` columns, saved it as a Parquet file (the
-   format Feast's `FileSource` expects), and wrote `iris_features.py` defining the
-   `iris_id` entity, the `iris_source` FileSource, and the `iris_features`
-   FeatureView over the four numeric columns.
-4. **Task 3 — Apply & materialize**: Ran `feast apply` to register the
-   definitions in the registry, then `feast materialize-incremental` to push
-   feature values into the SQLite online store. Verified both `registry.db` and
-   `online_store.db` were created.
-5. **Task 4 — Offline training**: Built an entity dataframe of all `iris_id`s and
-   timestamps, called `store.get_historical_features(...)` to pull the four
-   feature columns from Feast's offline store, and trained a
-   `DecisionTreeClassifier` on the result — achieving 100% evaluation accuracy on
-   the held-out split.
-6. **Task 5 — Online inference**: Picked two sample IDs (5 and 100), called
-   `store.get_online_features(...)` to fetch their features from the online
-   store, ran the trained model on them, and cross-checked the online-store
-   values against the raw dataset — confirming they matched exactly, and that
-   the model's predictions (`setosa` and `virginica`) matched the true species
-   labels for both samples.
-7. **Task 6 (BigQuery backend)** — Skipped, as it is explicitly marked optional
-   in the assignment.
+1. **Branch setup** — Created `week_5` from `main`, installed MLflow.
+2. **Task 1 — Hyperparameter tuning**: Wrote a loop in `train_mlflow.py`
+   trying four combinations of `max_depth` (2–5) and `min_samples_split`
+   (2–6). Confirmed the configurations genuinely produced different results —
+   accuracy ranged from 0.889 (shallowest tree) to 0.944 (deeper trees).
+3. **Task 2 — MLflow logging**: Wrapped each training iteration in
+   `mlflow.start_run()`, logging hyperparameters, evaluation metrics, and the
+   trained model as an artifact. Used a SQLite-backed tracking store
+   (`sqlite:///mlflow.db`), since the newer MLflow version deprecated the
+   plain file-based backend.
+4. **Task 3 — Compare in the UI**: Launched `mlflow ui`, viewed all four
+   logged runs in the Runs table, and used the built-in Parallel Coordinates
+   Plot to compare `max_depth` and `min_samples_split` against precision,
+   accuracy, and recall across multiple runs side-by-side.
+5. **Task 4 — Remove model from DVC**: Ran `dvc remove model.joblib.dvc` to
+   stop DVC from tracking the model, then ensured the raw `model.joblib`
+   binary was excluded from Git entirely (added to `.gitignore`) rather than
+   committed directly — keeping MLflow as the single source of truth for
+   models, with DVC continuing to track only `data/iris.csv.dvc`.
+6. **Task 5 — Fetch from registry for evaluation**: Registered the
+   best-performing run's model (`sedate-panda-579`, accuracy 0.944) into the
+   MLflow Model Registry under the name `iris_classifier`, version 1. Wrote
+   `evaluate_from_registry.py`, which loads the model via
+   `mlflow.sklearn.load_model("models:/iris_classifier/1")` and confirmed its
+   evaluation output (accuracy 0.944, precision 0.952, recall 0.949) exactly
+   matches the metrics originally logged for that run.
+7. **Task 6 (MLflow in CI)** — Skipped, as it is explicitly marked optional in
+   the assignment.
 
 ## Errors Encountered and How They Were Resolved
 
-During Task 4, importing `scikit-learn` began failing with binary-incompatibility
-and missing-symbol errors (`numpy.dtype size changed`, then
-`ImportError: cannot import name 'get_namespace_and_device'`). This was caused by
-installing `feast` pulling in a newer `numpy` version than the one `scikit-learn`
-had been compiled against, leaving a partially mismatched install. This was
-resolved by:
-1. Uninstalling `numpy`, `scipy`, and `scikit-learn`.
-2. Manually removing leftover package folders to clear any corrupted files pip
-   didn't fully clean up.
-3. Reinstalling `scikit-learn` fresh with `--no-cache-dir`, allowing pip to
-   select a `numpy` version compatible with both Feast (`numpy>=2.0`) and
-   scikit-learn.
-4. **Restarting the Jupyter kernel** — this was the critical missing step
-   initially, since the kernel had cached the broken module in memory even after
-   the packages were reinstalled on disk.
+1. **Filesystem tracking backend deprecated**: The first attempt to run
+   `mlflow.set_tracking_uri("file:./mlruns")` raised an
+   `MlflowException`, since this MLflow version has moved the plain
+   file-based store into maintenance mode. Resolved by switching to a
+   SQLite-backed store instead: `mlflow.set_tracking_uri("sqlite:///mlflow.db")`.
+2. **MLflow UI unreachable through the Workbench proxy ("Invalid Host header
+   — possible DNS rebinding attack")**: MLflow's built-in security middleware
+   only trusts requests arriving under `localhost` by default, and rejected
+   requests coming through the Workbench proxy hostname. Resolved by starting
+   the server with explicit `--allowed-hosts` and `--cors-allowed-origins`
+   flags matching the exact Workbench proxy URL, which allowed both the page
+   load and its background API calls to succeed.
+3. **Raw model binary briefly committed to Git after removing it from DVC**:
+   After running `dvc remove model.joblib.dvc`, a plain `git add -A` picked
+   up the now-untracked `model.joblib` file and committed it directly to
+   Git — the opposite of the intended outcome. Resolved with
+   `git rm --cached model.joblib` followed by adding it to `.gitignore`, so
+   the model exists only inside MLflow going forward.
 
-## Cloud / Local Resources Used
+## Cloud / Tooling Resources Used
 
-- **Vertex AI Workbench** — same instance from Weeks 1–2, used to run all Feast
-  commands and notebook cells.
-- **Local SQLite** — used as both Feast's registry backend and online store
-  backend (per Task 1's instruction that a local backend is sufficient).
-- **Git** — tracks the feature repo configuration, definitions, notebook, and
-  trained model for this branch.
+- **Vertex AI Workbench** — same instance from all previous weeks, used to run
+  training, the MLflow UI, and the registry evaluation script.
+- **MLflow (local, SQLite-backed)** — experiment tracking and model registry,
+  running entirely within the Workbench instance, accessed via its proxy URL.
+- **DVC** — continues to version `data/iris.csv.dvc` only, no longer tracks
+  model artifacts.
+- **Git** — tracks code, MLflow's tracking database and artifact store, and
+  this README.
 
 ## Author
 
