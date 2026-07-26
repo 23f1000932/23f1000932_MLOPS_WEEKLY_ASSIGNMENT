@@ -1,0 +1,7 @@
+cat > requirements.txt << 'EOF'
+flask
+mlflow
+scikit-learn
+pandas
+joblib
+EOF
