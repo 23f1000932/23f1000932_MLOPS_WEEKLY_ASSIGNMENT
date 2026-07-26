@@ -6,8 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app.py .
-COPY mlflow.db .
-COPY mlruns/ ./mlruns/
+COPY model_export/ ./model_export/
 
 EXPOSE 5001
 

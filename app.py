@@ -1,13 +1,9 @@
 from flask import Flask, request, jsonify
-import mlflow
-import mlflow.sklearn
+import joblib
 
 app = Flask(__name__)
 
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
-MODEL_NAME = "iris_classifier"
-MODEL_VERSION = "1"
-model = mlflow.sklearn.load_model(f"models:/{MODEL_NAME}/{MODEL_VERSION}")
+model = joblib.load("model_export/model.joblib")
 
 
 @app.route("/", methods=["GET"])
