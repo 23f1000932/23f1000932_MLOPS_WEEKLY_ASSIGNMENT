@@ -4,10 +4,10 @@ metadata:
   creationTimestamp: "2026-08-01T09:51:18Z"
   name: iris-api
   namespace: default
-  resourceVersion: "1785577903392015018"
+  resourceVersion: "1785579709816639018"
   uid: ba778721-28b3-40ff-8889-be3fba258bcc
 spec:
-  maxReplicas: 3
+  maxReplicas: 1
   metrics:
   - resource:
       name: cpu
@@ -22,7 +22,7 @@ spec:
     name: iris-api
 status:
   conditions:
-  - lastTransitionTime: "2026-08-01T09:51:33Z"
+  - lastTransitionTime: "2026-08-01T10:21:48Z"
     message: recommended size matches current size
     reason: ReadyForNewScale
     status: "True"
@@ -33,7 +33,7 @@ status:
     reason: ValidMetricFound
     status: "True"
     type: ScalingActive
-  - lastTransitionTime: "2026-08-01T09:51:33Z"
+  - lastTransitionTime: "2026-08-01T10:21:18Z"
     message: the desired count is within the acceptable range
     reason: DesiredWithinRange
     status: "False"
@@ -48,3 +48,4 @@ status:
     type: Resource
   currentReplicas: 1
   desiredReplicas: 1
+  lastScaleTime: "2026-08-01T10:21:33Z"
