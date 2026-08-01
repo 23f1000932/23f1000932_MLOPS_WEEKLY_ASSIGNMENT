@@ -1,48 +1,52 @@
 name: IRIS CD Pipeline
-
 on:
   push:
     branches:
       - week_6
+      - week_7
       - main
-
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GKE_SA_KEY }}
-
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
-
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
-
       - name: Build Docker image
         run: |
           docker build -t us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/iris-api-repo/iris-api:${{ github.sha }} .
           docker tag us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/iris-api-repo/iris-api:${{ github.sha }} us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/iris-api-repo/iris-api:latest
-
       - name: Push Docker image to Artifact Registry
         run: |
           docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/iris-api-repo/iris-api:${{ github.sha }}
           docker push us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/iris-api-repo/iris-api:latest
-
       - id: 'get-credentials'
         uses: 'google-github-actions/get-gke-credentials@v2'
         with:
           cluster_name: 'iris-cluster'
           location: 'us-central1'
-
       - name: Deploy to GKE
         run: |
           sed -i "s|IMAGE_TAG|${{ github.sha }}|g" k8s/deployment.yaml
           kubectl apply -f k8s/deployment.yaml
           kubectl rollout status deployment/iris-api --timeout=180s
+      - name: Install wrk
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential libssl-dev git
+          git clone https://github.com/wg/wrk.git
+          cd wrk && make && sudo cp wrk /usr/local/bin/
+      - name: Get service external IP
+        id: get-ip
+        run: |
+          IP=$(kubectl get svc iris-api-service -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+          echo "external_ip=$IP" >> $GITHUB_OUTPUT
+      - name: Run automated stress test
+        run: wrk -t4 -c200 -d15s --latency -s post_predict.lua http://${{ steps.get-ip.outputs.external_ip }}/predict
