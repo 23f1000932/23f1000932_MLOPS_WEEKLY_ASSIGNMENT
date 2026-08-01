@@ -1,64 +1,142 @@
-# Week 6 — Docker, Artifact Registry & GKE (IRIS API)
+# Week 7 Screencast Script (5–7 minutes)
 
-## Why this week's setup
+Plain-English narration script. Read naturally, don't rush — pause on each
+dashboard/terminal long enough for it to actually be visible on screen.
+Checklist points A–J are marked inline so you can confirm coverage while
+recording.
 
-The IRIS classifier is now served as a real API instead of a notebook prediction cell. A Flask app wraps the model,
-Docker packages that app into a portable image, Artifact Registry stores versioned images, and GKE runs the
-container as a live, restart-safe Pod behind a LoadBalancer. GitHub Actions ties it together: every push to
-`week_6` builds a new image, pushes it, and redeploys it — no manual `docker push` or `kubectl apply` required.
+---
 
-## Files in this branch
+## Intro (30 seconds)
 
-| File | Purpose |
-|---|---|
-| `app.py` | Flask API with a `/predict` endpoint; loads the exported model at startup |
-| `export_model.py` | Pulls the best model from the MLflow registry and writes it to `model_export/model.joblib` as a plain file |
-| `model_export/model.joblib` | The exported model the container actually serves — no MLflow runtime dependency |
-| `Dockerfile` | Builds the API image on `python:3.12-slim` |
-| `requirements.txt` | `flask`, `scikit-learn`, `joblib` |
-| `k8s/deployment.yaml` | Kubernetes Deployment + LoadBalancer Service for the API |
-| `.github/workflows/cd.yml` | CI/CD: builds the image, pushes to Artifact Registry, deploys to GKE |
+"Hi, this is Ayan, roll number 23f1000932, and this is my Week 7 submission
+for the MLOps Weekly Assignment — Stress Testing, Observability, and
+Scaling the IRIS pipeline.
 
-## Step-by-step summary
+Last week I got the IRIS prediction API running live on Google Kubernetes
+Engine. This week is about answering a harder question: what actually
+happens when real traffic hits it? I'll walk through five tasks — running
+high-concurrency load tests with wrk, configuring Kubernetes autoscaling,
+watching it scale live, monitoring it through GCP's dashboards, and finally
+taking autoscaling away to find the bottleneck."
 
-- **Task 1** — Created the `week_6` branch.
-- **Task 2** — Built `app.py` and `Dockerfile`; tested locally with `docker build` + `docker run`, confirmed
-  `/predict` returns a real prediction before touching CI at all.
-- **Task 3** — Created a dedicated service account for CI/CD with only the roles it needs (Artifact Registry writer,
-  GKE deployer), stored its key as the `GKE_SA_KEY` GitHub secret.
-- **Task 4** — Wrote `cd.yml`: authenticates with `GKE_SA_KEY`, builds the image, tags it with the commit SHA, and
-  pushes it to the `iris-api-repo` Artifact Registry repo.
-- **Task 5** — Created an Autopilot GKE cluster (`iris-cluster`, `us-central1`), wrote `k8s/deployment.yaml`, and
-  extended `cd.yml` to substitute the commit SHA into the manifest and `kubectl apply` it after every successful
-  push. Verified with `kubectl get pods` / `kubectl get svc` and a live `curl` call against the LoadBalancer IP.
-- **Task 6 (optional)** — Skipped.
+**[Checklist A — introduction and context, done]**
 
-## Errors encountered and how they were fixed
+---
 
-1. **IAM permission errors (`container.clusters.create`, Artifact Registry admin).** My personal account had broad
-   project-level roles but not these specific ones. Fixed by explicitly granting `roles/container.admin` and the
-   Artifact Registry admin role to my account.
-2. **Dockerfile edit didn't persist.** An earlier edit to switch the `COPY` target from `mlflow.db`/`mlruns/` to
-   `model_export/` was made in the editor but never actually saved, so a later build silently used the old
-   Dockerfile and failed with a missing-file error inside the container. Caught by `cat`-ing the file before
-   assuming the code itself was wrong.
-3. **`.gitignore` silently excluded a needed file.** An unanchored `model.joblib` rule added in Week 5 (to stop DVC
-   from tracking the model) also matched the nested `model_export/model.joblib` path, so it was never committed —
-   the Docker build in CI failed with `"model_export": not found` even though it worked locally. Fixed by scoping
-   the rule to the repo root (`/model.joblib`) and force-adding the file.
+## Part 1: CI/CD integration (45 seconds)
 
-## Verifying the deployment
+*(Screen: GitHub Actions, workflow run page)*
 
-```bash
-kubectl get pods
-kubectl get svc iris-api-service
-curl http://<EXTERNAL-IP>/predict -X POST -H "Content-Type: application/json" \
-  -d '{"sepal_length":5.1,"sepal_width":3.5,"petal_length":1.4,"petal_width":0.2}'
-```
+"First, Task 1 — I extended my existing CD pipeline so stress testing runs
+automatically. After the image builds and deploys to GKE, the workflow now
+installs wrk on the runner, grabs the live service's external IP, and
+fires a quick load test against it — right here in the Actions tab. You
+can see this run completed successfully in about four and a half minutes,
+with the stress test step passing at the end."
 
-## Cleanup (after recording the screencast)
+*(Show the green checkmark and expand the 'Run automated stress test' step
+briefly)*
 
-```bash
-gcloud container clusters delete iris-cluster --region=us-central1
-```
-GKE clusters bill continuously while running, so this is deleted once the screencast evidence is captured.
+**[Checklist B — CI/CD stress test integration, done]**
+
+---
+
+## Part 2: Manual load test with wrk (1 minute)
+
+*(Screen: Terminal, wrk running)*
+
+"Task 2 is a manual, heavier load test — over a thousand concurrent
+connections against the live `/predict` endpoint, using this wrk script
+that sends a proper JSON POST request instead of wrk's default GET."
+
+*(Show `cat post_predict.lua` briefly, then run or show the saved output)*
+
+"Here's the result — about 192 requests per second, with a median latency
+of around 650 milliseconds, and some timeouts starting to show up. This
+was before autoscaling was configured, so one pod is absorbing all of
+this alone."
+
+**[Checklist C — wrk high-concurrency test (>1000 connections), done]**
+**[Checklist D — recorded req/sec, latency, error count, done]**
+
+---
+
+## Part 3: Configuring and observing the HPA (1.5 minutes)
+
+*(Screen: Terminal — three tabs: wrk, `kubectl get pods -w`, `kubectl get hpa -w`)*
+
+"For Task 3, I configured a Horizontal Pod Autoscaler — minimum 1 pod,
+maximum 3, targeting 50% CPU utilization. I've got three terminals open:
+one to fire the load test, and two watching pods and the HPA live."
+
+*(Trigger the load test, then switch to the watch tabs)*
+
+"Watch this — CPU jumps well past the 50% target, up to about 164%, and
+within about ten seconds Kubernetes spins up two more pods, going from 1
+replica to 3. That's the autoscaler doing exactly what it's supposed to."
+
+**[Checklist E — HPA configured with min/max replicas, done]**
+**[Checklist F — autoscaling observed live via kubectl, done]**
+
+---
+
+## Part 4: GCP Monitoring and Logging (1.5 minutes)
+
+*(Screen: Browser — GCP Console, Workloads → iris-api → Observability tab)*
+
+"Task 4 is about correlating that scaling event with GCP's own dashboards,
+not just kubectl. Here's the CPU Request percent graph, broken down per
+pod — you can clearly see the spike lining up with when I ran the load
+test, and it's spread across all three pod names once the HPA scaled out."
+
+*(Switch to Logs Explorer tab)*
+
+"And here's Cloud Logging, filtered to just the iris-api container. During
+the load test this streams in a flood of POST /predict 200 responses in
+real time — this confirms requests really were reaching and being handled
+by the pods, not just that CPU went up for some other reason."
+
+**[Checklist G — Cloud Monitoring dashboard shown, done]**
+**[Checklist H — Cloud Logging filtered by pod/container shown, done]**
+
+---
+
+## Part 5: Constrained scaling and bottleneck analysis (1.5 minutes)
+
+*(Screen: Terminal, then back to browser for comparison)*
+
+"Finally, Task 5 — I wanted to see what happens without autoscaling to
+rely on. I patched the HPA down to a maximum of 1 pod, confirmed it scaled
+back down, and then doubled the load — 2000 connections instead of 1000."
+
+*(Show the task5 wrk output)*
+
+"And here's the interesting part — even though I sent twice the load,
+throughput actually went down, from about 192 requests per second to 163.
+Latency got worse across the board — median jumped from 649 milliseconds
+to 824. Fewer total requests completed in the same 30 seconds, despite
+more being sent.
+
+That's the bottleneck: with only one pod and no room to scale out, CPU is
+a hard ceiling. Extra concurrent connections don't get processed faster —
+they just queue up behind the same fixed compute capacity, so latency
+climbs instead of throughput increasing. The Cloud Monitoring CPU graph
+for this run shows a much sharper, sustained spike on the single pod
+compared to Task 3's load spread across three."
+
+**[Checklist I — maxReplicas=1 constrained test with 2000 connections, done]**
+**[Checklist J — bottleneck identified and explained with comparison data, done]**
+
+---
+
+## Closing (15 seconds)
+
+"That covers all five tasks — automated stress testing in CI/CD, manual
+high-concurrency load testing, live autoscaling, GCP dashboard monitoring,
+and a constrained-scaling bottleneck analysis. All the code, results, and
+the HPA config are committed on the week_7 branch. Thanks for watching."
+
+---
+
+**Total estimated runtime: ~6.5 minutes**
