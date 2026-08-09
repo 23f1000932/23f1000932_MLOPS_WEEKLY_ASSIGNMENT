@@ -1,142 +1,141 @@
-# Week 7 — Stress Testing, Observability & Scaling the IRIS Pipeline
+# Week 8 — Integrating MLSecOps into the IRIS Pipeline
 
-**Branch:** `week_7`
+**Branch:** `week_8`
 **Roll number:** 23f1000932
-**Live API:** `http://35.254.178.209/predict` (GKE LoadBalancer, cluster `iris-cluster`)
+**MLflow experiment:** `iris_poisoning_analysis` (separate from `iris_classification`)
 
 ## Why this week matters
 
-Week 6 got the IRIS API live on GKE, but a working deployment isn't the same
-as a *production-ready* one. This week answers the questions that matter
-once real traffic shows up: how many concurrent users can the API handle
-before it slows down or errors out? Does Kubernetes actually scale the way
-it's supposed to under load? And when scaling is *not* available, what
-breaks first?
+Every previous week built out a functioning ML pipeline — versioned data
+with DVC, tracked experiments with MLflow, a live API on GKE, autoscaling
+and observability under load. None of that protects against someone
+deliberately tampering with the data, the model, or the inputs at
+inference time. This week is about applying security thinking to the ML
+lifecycle itself: what happens if an attacker poisons the training data
+before it ever reaches `train.py`?
 
-We used `wrk` to generate high-concurrency HTTP load, configured a
-Kubernetes Horizontal Pod Autoscaler (HPA) to scale Pods automatically,
-watched it happen live through `kubectl` and GCP's Cloud Monitoring /
-Cloud Logging dashboards, and then deliberately took autoscaling away to
-see where the single-Pod bottleneck shows up.
+We simulated a data poisoning attack on the IRIS dataset at three severity
+levels (5%, 10%, 50%), trained the same model architecture on each
+variant, and used MLflow to measure exactly how much — and how fast —
+model quality degrades as corruption increases.
 
 ## What was built (file by file)
 
 | File | Purpose |
 |---|---|
-| `post_predict.lua` | wrk script — sends a POST request to `/predict` with a sample IRIS JSON payload and the correct `Content-Type` header, since wrk defaults to GET. |
-| `hpa.yaml` | Exported HPA config (`kubectl get hpa iris-api -o yaml`). Final committed version has `minReplicas: 1`, `maxReplicas: 3`, target CPU 50%. |
-| `task2_wrk_results.txt` | Task 2 evidence — 1000 connections, no autoscaling limit yet applied (before HPA existed). |
-| `task3_wrk_results.txt` | Task 3 evidence — 1000 connections with HPA active (`max=3`), captured while watching Pods scale 1 → 3. |
-| `task4_wrk_results.txt` | Task 4 evidence — same load test re-run while GCP Cloud Monitoring and Cloud Logging were open, to correlate wrk's numbers with GCP's own dashboards. |
-| `task5_wrk_results.txt` | Task 5 evidence — HPA constrained to `maxReplicas: 1`, load increased to 2000 connections, to force and observe the single-Pod bottleneck. |
-| `.github/workflows/cd.yml` | Extended with three new steps after `Deploy to GKE`: install `wrk` on the runner, fetch the LoadBalancer's external IP, then run an automated stress test against the live API on every push to `week_7`/`main`. |
+| `poison_data.py` | Generates three poisoned copies of `data/iris.csv`. For a random subset of rows (5%, 10%, or 50% of the dataset), all four features are replaced with values drawn from the *observed* min/max range per feature (not arbitrary numbers), and the label is replaced with a random species. Outputs `data/iris_poisoned_5.csv`, `_10.csv`, `_50.csv`. |
+| `data/iris_poisoned_5.csv`, `_10.csv`, `_50.csv` | The three poisoned dataset variants, DVC-tracked the same way `iris.csv` already was. |
+| `train_poisoned_mlflow.py` | Trains a `DecisionTreeClassifier(max_depth=3, random_state=1)` — same hyperparameters as the original `train.py` baseline — on the clean dataset and each poisoned variant in turn. Logs `poisoning_level_pct`, `dataset_path`, and `max_depth` as params, and `accuracy`, `precision`, `recall`, `f1_score` as metrics, to a dedicated `iris_poisoning_analysis` MLflow experiment (kept separate from the `iris_classification` hyperparameter-sweep experiment from an earlier week, so poisoning level is the only variable changing across the four comparison runs). |
 
 ## Step-by-step summary
 
-### Task 1 — Automated stress test in CI/CD
-Added three steps to `cd.yml` right after the existing `kubectl rollout
-status` step: install `wrk` from source on the GitHub Actions runner, read
-the Service's external IP via `kubectl get svc -o jsonpath`, then run
-`wrk -t4 -c200 -d15s` against the live `/predict` endpoint. Used a lighter
-load (200 connections, 15s) than the manual tests since this runs on every
-push and needs to stay fast — the heavy 1000/2000-connection stress tests
-are already covered manually in Tasks 2–5. Confirmed working end-to-end
-in GitHub Actions (run #7, Success, 4m 40s).
+### Task 1 — Explain ML threat vectors
+Covered in the video screencast, not as code. Four threat vectors, mapped
+to pipeline stage:
+- **Data poisoning** (data ingestion / training stage) — corrupting
+  training data to degrade accuracy or introduce targeted
+  misclassifications. This is what Tasks 2–4 simulate directly.
+- **Adversarial examples** (inference stage) — small, often imperceptible
+  perturbations to a *correct* model's input that cause misclassification.
+  Unlike poisoning, the model itself is never touched — only what's fed to
+  it at prediction time.
+- **Model extraction** (deployed model / API stage) — repeatedly querying
+  a live endpoint to reconstruct the model's decision boundary or steal
+  its parameters. Mitigated by rate limiting, query logging, and returning
+  class labels instead of full probability distributions.
+- **Prompt injection** (inference stage, LLM-specific) — malicious
+  instructions embedded in user input that override an LLM-based system's
+  intended behavior, analogous to SQL injection but against natural
+  language interfaces.
 
-### Task 2 — Simulate high-concurrency traffic
-Installed `wrk` on the Vertex AI Workbench instance, wrote
-`post_predict.lua`, ran a small sanity check (10 connections) to confirm
-the API responds correctly to the script's POST body, then ran the real
-test: `wrk -t4 -c1000 -d30s --latency`. Result: ~192 req/sec, 50th
-percentile latency 649ms, some socket errors/timeouts at this concurrency
-— expected, since no autoscaling was configured yet at this point.
+### Task 2 — Poison the IRIS dataset
+Wrote `poison_data.py` to generate all three corruption levels in one
+run, using a fixed seed per level for reproducibility. Poisoned rows have
+every feature replaced with a random value inside the real dataset's
+observed range (sepal length 4.3–7.9, sepal width 2.0–4.4, petal length
+1.0–6.9, petal width 0.038–2.5) rather than wildly out-of-range numbers —
+a more realistic simulation of an attacker trying to blend in, and a
+harder detection case than an obviously-broken row would be. Verified the
+90/180 corrupted rows at 50% by inspecting the output CSV directly. All
+three outputs DVC-tracked (`dvc add`), matching how `iris.csv` itself is
+tracked, and `.gitignore` updated automatically.
 
-### Task 3 — Configure the Horizontal Pod Autoscaler
-Confirmed the Deployment already had `resources.requests.cpu: 500m` set
-(required for HPA to calculate utilization). Created the HPA with
-`kubectl autoscale deployment iris-api --cpu=50% --min=1 --max=3`. Opened
-two extra terminal tabs running `kubectl get pods -w` and
-`kubectl get hpa -w`, then re-ran the Task 2 load test. Watched CPU climb
-to 164% (well over the 50% target), triggering the HPA to scale from 1 Pod
-to 3 within about 10 seconds. Saved the config as `hpa.yaml`.
+### Task 3 — Train & log experiments in MLflow
+Wrote `train_poisoned_mlflow.py`, reusing the tracking setup pattern
+(`sqlite:///mlflow.db`) from the earlier hyperparameter-sweep script but
+pointed at a new `iris_poisoning_analysis` experiment. Trained the same
+fixed architecture on the clean dataset and all three poisoned variants,
+logging accuracy, precision (macro), recall (macro), and F1 (macro) for
+each. Results:
 
-### Task 4 — Monitor with GCP Cloud Monitoring & Cloud Logging
-With Kubernetes Engine → Workloads → `iris-api` → Observability open in
-one browser tab and Cloud Logging (Logs Explorer, filtered to
-`resource.type="k8s_container"` and `container_name="iris-api"`) open in
-another, re-ran the load test. The CPU Request % Used graph showed a clear
-spike across all 3 Pods matching the load test window, and Logs Explorer
-streamed a burst of `POST /predict HTTP/1.1" 200` entries in real time —
-confirming the dashboards correlate directly with the load test, not just
-`kubectl` output.
+| Poisoning level | Accuracy | Precision | Recall | F1 |
+|---|---|---|---|---|
+| 0% (clean) | 0.944 | 0.952 | 0.949 | 0.947 |
+| 5% | 0.889 | 0.917 | 0.897 | 0.892 |
+| 10% | 0.889 | 0.905 | 0.883 | 0.885 |
+| 50% | 0.556 | 0.556 | 0.558 | 0.556 |
 
-### Task 5 — Observe bottlenecks under constrained scaling
-Patched the HPA down to `maxReplicas: 1`
-(`kubectl patch hpa iris-api -p '{"spec":{"maxReplicas":1}}'`), confirmed
-it scaled back down to exactly 1 Pod, then ran
-`wrk -t4 -c2000 -d30s --latency` — double the concurrency of Task 3, but
-now with zero scale-out capacity.
+### Task 4 — Analyze validation outcomes
+Comparing the four runs in the MLflow UI:
+- **Degradation starts immediately, at 5%.** Accuracy drops from 0.944 to
+  0.889 the moment any poisoning is introduced — there's no "safe"
+  threshold below which the model is unaffected.
+- **10% barely moves the needle beyond 5%** (accuracy holds at 0.889;
+  precision/recall dip only slightly). At this scale of dataset (180
+  rows), 5% and 10% corruption are close enough in absolute row count that
+  the model's decision boundary shifts similarly either way.
+- **50% is the real breaking point.** Accuracy collapses to 0.556 — a
+  17-point drop from the 10% level, far larger than the 5%→10% step.
+- **The model is not yet fully random at 50%.** With 3 balanced classes,
+  chance-level accuracy is roughly 0.33. At 0.556, the model is still
+  extracting real signal from the 50% of rows that remain clean — it's
+  degraded, not destroyed. Full collapse to near-random would need
+  corruption levels well past 50%.
 
-**Comparison — Task 3 (max=3, 1000 conns) vs Task 5 (max=1, 2000 conns):**
-
-| Metric | Task 3 | Task 5 |
-|---|---|---|
-| Requests/sec | 191.83 | 163.18 |
-| 50th percentile latency | 649ms | 824ms |
-| 90th percentile latency | 1.30s | 1.41s |
-| Total requests completed (30s) | 5,774 | 4,903 |
-| Timeouts | 286 | 238 |
-
-Despite offering **double** the concurrent load, Task 5 completed **fewer**
-total requests with **worse** latency at every percentile. This is the
-textbook throughput-plateau signature: once the single Pod's CPU request
-(500m) is saturated, adding more concurrent connections doesn't increase
-throughput — it just queues more requests behind the same fixed compute
-capacity, so latency climbs instead. With `maxReplicas: 3` in Task 3, the
-extra load could be spread across additional Pods; with `maxReplicas: 1`
-in Task 5, CPU is the hard ceiling and there's no escape valve. Cloud
-Monitoring's CPU graph confirmed this — Task 5's single-Pod CPU spike was
-sharper and more sustained than Task 3's spread-across-3-Pods graph.
+### Task 5 — Mitigation strategies & data quantity vs. quality
+Covered in the video screencast. Key points:
+- **Detection**: schema validation and range/type checks catch
+  obviously-malformed poisoned rows; the harder case (like this
+  assignment's realistic in-range poisoning) needs statistical profiling
+  — per-class feature distributions, outlier/anomaly detection relative to
+  each class's expected cluster, not just global min/max — plus data
+  provenance tracking to flag rows from untrusted or newly-added sources
+  before they enter a training run.
+- **Mitigation in production**: quarantine flagged rows for manual review
+  rather than silently dropping or silently including them; version
+  datasets (as this pipeline already does with DVC) so a poisoning
+  incident can be traced to exactly which data version introduced it and
+  rolled back.
+- **Quantity vs. quality**: this assignment's own numbers make the case —
+  going from 5% to 10% poisoned (i.e., adding *more* poisoned data)
+  produced almost no additional damage over 5% alone, while going from
+  10% to 50% caused the real collapse. That's consistent with the general
+  principle: more data does not compensate for a fixed *proportion* of
+  poisoned samples, because the poisoned fraction of the training
+  signal grows with it. What matters is the absolute count and
+  proportion of *clean* samples, not total dataset size — collecting more
+  data only helps if the new data is verified clean, otherwise it can
+  actively dilute the model's ability to learn the true decision boundary
+  faster than it dilutes the poisoned signal.
 
 ## Errors encountered and fixes
 
-- **`kubectl get svc` initially failed** with
-  `executable gke-gcloud-auth-plugin not found`. Fixed by installing
-  `google-cloud-cli-gke-gcloud-auth-plugin` via `apt-get` and setting
-  `USE_GKE_GCLOUD_AUTH_PLUGIN=True`, then re-running
-  `gcloud container clusters get-credentials`.
-- **HPA briefly showed `REPLICAS: 0`** right after creation via
-  `kubectl autoscale`. Not a real issue — the Deployment itself still
-  showed `1/1 Running`; the HPA's reported replica count just lagged a few
-  seconds behind actual cluster state and corrected itself.
-- **Logs Explorer's default 5-minute time window** initially caught almost
-  no relevant logs since the load test had already finished. Fixed by
-  widening the range to "Last 1 hour."
-- **A recurring `sklearn` `UserWarning`** ("X does not have valid feature
-  names...") appears on every prediction request because `app.py` passes a
-  plain Python list to `model.predict()` rather than a DataFrame with
-  named columns. Harmless — predictions still return `200` — but it
-  roughly doubles the log line count per request and gets tagged
-  `severity: ERROR` in Cloud Logging simply because Python's
-  `warnings.warn()` writes to stderr, which GKE's default logging pipeline
-  labels as ERROR regardless of actual content. Not fixed this week since
-  it doesn't affect functionality, but worth noting so the "ERROR" count
-  in Logs Explorer isn't mistaken for real failures.
+- **MLflow UI unreachable via the Workbench proxy** — loading
+  `https://<instance>-dot-us-central1.notebooks.googleusercontent.com/proxy/5000/`
+  after starting `mlflow ui --host 0.0.0.0 --port 5000` returned
+  `Invalid Host header - possible DNS rebinding attack detected`. This is
+  MLflow's own host-header check rejecting the proxy's rewritten hostname.
+  Fixed by restarting with `mlflow ui --host 0.0.0.0 --port 5000
+  --allowed-hosts "*"`.
 
 ## How to reproduce
 
 ```bash
 # From the repo root, on the Vertex AI Workbench terminal
-wrk -t4 -c1000 -d30s --latency -s post_predict.lua http://35.254.178.209/predict
+python3 poison_data.py
+python3 train_poisoned_mlflow.py
 
-# Watch scaling live (separate terminal tabs)
-kubectl get pods -w
-kubectl get hpa -w
-
-# Constrain and re-test (Task 5 scenario)
-kubectl patch hpa iris-api -p '{"spec":{"maxReplicas":1}}'
-wrk -t4 -c2000 -d30s --latency -s post_predict.lua http://35.254.178.209/predict
-
-# Restore full autoscaling
-kubectl patch hpa iris-api -p '{"spec":{"maxReplicas":3}}'
+# View results in MLflow
+mlflow ui --backend-store-uri sqlite:///mlflow.db --host 0.0.0.0 --port 5000 --allowed-hosts "*" &
+# then open https://<your-instance>-dot-us-central1.notebooks.googleusercontent.com/proxy/5000/
 ```
