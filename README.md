@@ -1,126 +1,130 @@
-# 23f1000932_MLOPS_WEEKLY_ASSIGNMENT — Week 3
+# Week 9 — Explainability, Fairness, and Drift in the IRIS Pipeline
 
-## Feast Feature Store Integration for the IRIS Pipeline
+**Branch:** `week_9`
+**Roll number:** 23f1000932
+**Model card:** `MODEL_CARD.md`
 
-This branch (`week_3`) extends the IRIS pipeline with a **feature store layer**,
-using [Feast](https://feast.dev/), so that training and inference draw features
-from a single, consistent source — instead of the model reading raw CSV data
-directly.
+## Why this week matters
 
-## Why This Was Needed
+Week 8 secured the pipeline against deliberate data poisoning. But a model
+can be perfectly secure and still be untrustworthy — it might rely on
+features in ways nobody actually verified, perform worse for some groups
+than others, or quietly degrade as real-world data drifts away from what
+it was trained on. This week is about making the model's behavior
+legible: explaining individual predictions with SHAP, auditing for
+performance gaps across groups with Fairlearn, detecting when incoming
+data no longer matches the training distribution, and documenting all of
+it in a model card so the whole picture is accountable, not just the
+accuracy number.
 
-In Week 2, DVC gave version control for data and model files — it answers
-*"which version of the data produced this model?"* But DVC does not address a
-different problem: *"how do I make sure training and real-time inference always
-see the exact same engineered features?"* If training reads a CSV one way and a
-production service computes features another way, small inconsistencies
-("training/serving skew") can silently degrade model quality. Feast solves this
-by sitting between raw data and the model, offering one place to define, store,
-and retrieve features — both for historical (offline) training and low-latency
-(online) inference.
-
-## Objective
-
-1. Initialize a Feast feature repository within the existing IRIS project.
-2. Define an entity, a data source, and a feature view for the IRIS dataset.
-3. Register these definitions and materialize feature values into the online
-   store.
-4. Train the IRIS classifier using features fetched from Feast's **offline**
-   store — not the raw CSV.
-5. Simulate real-time inference by fetching features for specific samples from
-   Feast's **online** store, and verify the predictions are consistent with the
-   ground truth.
-
-## Repository Structure (week_3 branch)
-
-```
-iris_feature_repo/
-└── feature_repo/
-    ├── feature_store.yaml       # Feast config: local provider, SQLite backend
-    ├── iris_features.py         # Entity, data source, and feature view definitions
-    ├── data/
-    │   ├── iris.parquet         # IRIS data with iris_id + event_timestamp columns
-    │   ├── iris.parquet.csv     # Same data in CSV form (for easy inspection)
-    │   └── registry.db          # Feast registry (tracks applied definitions)
-    └── model_feast.joblib       # Model trained on features fetched from Feast
-23f1000932_Assignment_3_May2026_MLOps.ipynb   # Main notebook: all steps below
-README.md
-```
-
-## File-by-File: What Each One Does and Why
+## What was built (file by file)
 
 | File | Purpose |
 |---|---|
-| `feature_store.yaml` | Feast's core config file. Configured to use the **local** provider with a **SQLite** online store — no cloud backend needed for this assignment, keeping the setup simple and self-contained. |
-| `iris_features.py` | Defines the three building blocks Feast needs: an **Entity** (`iris_id`, uniquely identifying each flower sample), a **FileSource** (pointing at `data/iris.parquet`), and a **FeatureView** (`iris_features`, mapping the four numeric IRIS columns — sepal/petal length and width — to that entity and source). This file must exist on disk (not just as notebook variables) because `feast apply` scans `.py` files in the repo to discover definitions. |
-| `data/iris.parquet` / `iris.parquet.csv` | The IRIS dataset (180 rows — the augmented version carried over from Week 2) with two columns added: `iris_id` (a unique integer per row, used as the entity key) and `event_timestamp` (set to the notebook's run time for every row). Feast requires every row to have a timestamp since it's designed for data that changes over time; IRIS is static, so this timestamp is a placeholder rather than a meaningful "event time." |
-| `data/registry.db` | Feast's registry — created by `feast apply`, it records the entity and feature view definitions so Feast knows what's available to serve. |
-| `model_feast.joblib` | The trained `DecisionTreeClassifier`, fit on features retrieved via `store.get_historical_features(...)` rather than a direct `pd.read_csv()` call — this is the key behavioral change Task 4 asks for. |
-| `23f1000932_Assignment_3_May2026_MLOps.ipynb` | The full workflow: installing Feast, initializing the repo, defining features, applying/materializing them, training via the offline store, and running inference via the online store. |
+| `add_location.py` | Adds a `location` column (randomly 0 or 1) to a copy of the IRIS dataset, saved as `data/iris_with_location.csv`. Used only as a sensitive attribute for the fairness audit — never as a training feature. |
+| `fairness_audit.py` | Trains the model on the original 4 features only, then uses Fairlearn's `MetricFrame` to break accuracy/precision/recall down by `location` group and report the gap between them. |
+| `shap_analysis.py` | Uses SHAP's `TreeExplainer` on the trained model to generate a summary plot per class (`shap_summary_setosa.png`, `_versicolor.png`, `_virginica.png`), showing which features drive each prediction and in which direction. |
+| `drift_detection.py` | Simulates a "production" dataset by shifting `petal_length` up by 1.5cm, then runs a Kolmogorov-Smirnov test per feature to statistically confirm which features actually drifted. Outputs `drift_results.csv` and a 4-panel distribution comparison plot (`drift_distributions.png`). |
+| `MODEL_CARD.md` | Structured documentation covering intended use, training data (including the sensitive attribute), performance overall and by group, explainability findings, known limitations, and fairness considerations. |
+| `data/iris_with_location.csv`, `data/iris_production_simulated.csv` | The two new dataset variants this week, DVC-tracked the same way `iris.csv` already was. |
 
-## What Is NOT Included (by design)
+## Step-by-step summary
 
-- `online_store.db` — Feast's own `.gitignore` excludes this, since it's a
-  regenerable local cache, similar in spirit to excluding raw data/model
-  binaries directly in Git during Week 1/2.
-- Video screencast — submitted separately per assignment instructions.
+### Task 1 — Introduce the location attribute
+Wrote `add_location.py` to create a copy of the dataset with a new
+`location` column, randomly assigned 0 or 1 per row using a fixed seed.
+Split came out 94/86 — close to balanced. Critically, `location` is added
+to a *separate* CSV (`iris_with_location.csv`), not merged into the
+original `iris.csv`, so nothing from earlier weeks that depends on the
+clean dataset is affected. It is never included in the feature list used
+to train the model — it exists purely so later analysis can check whether
+the model's predictions are equally accurate across the two groups.
 
-## Step-by-Step Summary of What Was Done
+### Task 2 — Assess fairness with Fairlearn
+Wrote `fairness_audit.py`, training the same architecture as previous
+weeks (`DecisionTreeClassifier`, `max_depth=3`) on the four real
+features, then passing `location` as the `sensitive_features` argument to
+Fairlearn's `MetricFrame` alongside accuracy, precision, and recall.
+Results:
 
-1. **Branch setup** — Created `week_3` from `week_2`.
-2. **Task 1 — Initialize Feast**: Ran `feast init iris_feature_repo`, removed the
-   auto-generated example/demo files, and confirmed `feature_store.yaml` uses the
-   local/SQLite provider by default.
-3. **Task 2 — Define entity, source, feature view**: Copied the IRIS dataset in,
-   added `iris_id` and `event_timestamp` columns, saved it as a Parquet file (the
-   format Feast's `FileSource` expects), and wrote `iris_features.py` defining the
-   `iris_id` entity, the `iris_source` FileSource, and the `iris_features`
-   FeatureView over the four numeric columns.
-4. **Task 3 — Apply & materialize**: Ran `feast apply` to register the
-   definitions in the registry, then `feast materialize-incremental` to push
-   feature values into the SQLite online store. Verified both `registry.db` and
-   `online_store.db` were created.
-5. **Task 4 — Offline training**: Built an entity dataframe of all `iris_id`s and
-   timestamps, called `store.get_historical_features(...)` to pull the four
-   feature columns from Feast's offline store, and trained a
-   `DecisionTreeClassifier` on the result — achieving 100% evaluation accuracy on
-   the held-out split.
-6. **Task 5 — Online inference**: Picked two sample IDs (5 and 100), called
-   `store.get_online_features(...)` to fetch their features from the online
-   store, ran the trained model on them, and cross-checked the online-store
-   values against the raw dataset — confirming they matched exactly, and that
-   the model's predictions (`setosa` and `virginica`) matched the true species
-   labels for both samples.
-7. **Task 6 (BigQuery backend)** — Skipped, as it is explicitly marked optional
-   in the assignment.
+| Group | Accuracy | Precision | Recall |
+|---|---|---|---|
+| Overall | 94.4% | 95.2% | 94.9% |
+| location = 0 | 100.0% | 100.0% | 100.0% |
+| location = 1 | 91.3% | 91.7% | 92.6% |
 
-## Errors Encountered and How They Were Resolved
+There's an 8.7-point accuracy gap between groups. Since `location` was
+assigned completely at random and has no relationship to the actual
+flower measurements, this gap is sampling noise from a small eval set (36
+rows split across two groups) rather than a real fairness problem — a
+useful contrast to Week 8, where the gaps we measured were driven by an
+actual injected effect (poisoning), not chance.
 
-During Task 4, importing `scikit-learn` began failing with binary-incompatibility
-and missing-symbol errors (`numpy.dtype size changed`, then
-`ImportError: cannot import name 'get_namespace_and_device'`). This was caused by
-installing `feast` pulling in a newer `numpy` version than the one `scikit-learn`
-had been compiled against, leaving a partially mismatched install. This was
-resolved by:
-1. Uninstalling `numpy`, `scipy`, and `scikit-learn`.
-2. Manually removing leftover package folders to clear any corrupted files pip
-   didn't fully clean up.
-3. Reinstalling `scikit-learn` fresh with `--no-cache-dir`, allowing pip to
-   select a `numpy` version compatible with both Feast (`numpy>=2.0`) and
-   scikit-learn.
-4. **Restarting the Jupyter kernel** — this was the critical missing step
-   initially, since the kernel had cached the broken module in memory even after
-   the packages were reinstalled on disk.
+### Task 3 — Generate SHAP summary plots and explain virginica
+Wrote `shap_analysis.py` using SHAP's `TreeExplainer` (fast and exact for
+tree-based models), generating one summary plot per class. Reading the
+virginica plot:
+- **`petal_width` is by far the most influential feature** — high values
+  (red/pink dots) push strongly toward virginica (SHAP values around
+  +0.47 to +0.65), while low values (blue dots) push away (around −0.3).
+- **`petal_length` is the second most influential**, with the same
+  pattern at a smaller scale.
+- **`sepal_width` and `sepal_length` barely matter** — nearly all their
+  SHAP values sit at zero, meaning the tree essentially ignores them for
+  this decision.
+- Values cluster into discrete groups rather than a smooth gradient
+  because this is a decision tree with hard split thresholds, not a
+  continuous model — SHAP reflects that structure directly.
 
-## Cloud / Local Resources Used
+### Task 4 — Detect data drift
+Wrote `drift_detection.py`, simulating a production dataset by shifting
+only `petal_length` up by 1.5cm — a stand-in for something like a new
+growing region or season — while leaving the other three features
+untouched. Ran a two-sample Kolmogorov-Smirnov test per feature:
 
-- **Vertex AI Workbench** — same instance from Weeks 1–2, used to run all Feast
-  commands and notebook cells.
-- **Local SQLite** — used as both Feast's registry backend and online store
-  backend (per Task 1's instruction that a local backend is sufficient).
-- **Git** — tracks the feature repo configuration, definitions, notebook, and
-  trained model for this branch.
+| Feature | KS statistic | p-value | Drifted? |
+|---|---|---|---|
+| sepal_length | 0.0000 | 1.000000 | No |
+| sepal_width | 0.0000 | 1.000000 | No |
+| petal_length | 0.4444 | 0.000000 | **Yes** |
+| petal_width | 0.0000 | 1.000000 | No |
 
-## Author
+Clean result: only the feature that was actually shifted gets flagged.
+This is **data drift, not concept drift** — the relationship between
+petal length and species hasn't changed, only the input distribution
+has. The real risk for a deployed model is that it would see petal
+lengths outside anything in its training data and, per the Task 3 SHAP
+findings, likely get skewed toward predicting virginica regardless of
+the sample's true species, since the model associates large petal
+measurements strongly with that class.
 
-Ayan Hussain — 23f1000932, B.S. Data Science & Applications, IIT Madras.
+### Task 5 (optional) — Model card
+Wrote `MODEL_CARD.md`, covering intended use, training data (including
+the location sensitive attribute), overall and by-group performance,
+the SHAP explainability findings, known limitations (small dataset,
+sensitivity to drift, no poisoning defenses at inference time, near-total
+reliance on two of four features), and fairness considerations for any
+future re-audit against a real sensitive attribute.
+
+## Errors encountered and fixes
+
+- **CI failed on `dvc pull`** the first time each new dataset was
+  pushed, with `ERROR: failed to pull data from the cloud - Checkout
+  failed for following targets`. Same root cause as a Week 8 incident:
+  `dvc add` + `git commit` only commits the `.dvc` pointer file, not the
+  underlying data — the actual data needs a separate `dvc push` to reach
+  the GCS remote. Fixed by running `dvc push` after each `dvc add`, which
+  resolved it on the next CI run.
+
+## How to reproduce
+
+```bash
+# From the repo root, on the Vertex AI Workbench terminal
+python3 add_location.py
+python3 fairness_audit.py
+python3 shap_analysis.py
+python3 drift_detection.py
+
+# Push any new/updated DVC-tracked data to the remote
+dvc push
+```

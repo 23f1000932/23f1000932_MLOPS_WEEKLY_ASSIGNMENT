@@ -1,0 +1,5 @@
+feature,ks_statistic,p_value,drifted
+sepal_length,0.0,1.0,False
+sepal_width,0.0,1.0,False
+petal_length,0.4444444444444444,2.2581261907501157e-16,True
+petal_width,0.0,1.0,False

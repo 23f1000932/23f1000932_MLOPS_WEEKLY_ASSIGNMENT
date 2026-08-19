@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
 
     steps:
@@ -34,6 +34,9 @@ jobs:
 
       - name: Pull data and model with DVC
         run: dvc pull
+
+      - name: Train model
+        run: python3 train.py
 
       - name: Run tests
         run: pytest tests/ -v
