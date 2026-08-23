@@ -1,21 +1,18 @@
 import json
 import time
 import pandas as pd
-import vertexai
-from vertexai.generative_models import GenerativeModel
+from google import genai
+from google.genai import types
 
-# TODO: fill these in once tuning jobs finish (from the Vertex AI console,
-# tuning job's "Deploy & test" tab -> endpoint resource name, format:
-# projects/<PROJECT_NUMBER>/locations/us-central1/endpoints/<ENDPOINT_ID>)
-V1_ENDPOINT = "REPLACE_ME_V1_ENDPOINT"
-V2_ENDPOINT = "REPLACE_ME_V2_ENDPOINT"
+V1_ENDPOINT = "projects/17077469791/locations/us/endpoints/9222105399459577856"
+V2_ENDPOINT = "projects/17077469791/locations/us/endpoints/2307954071539023872"
 
 PROJECT_ID = "project-bcb80534-6ef1-4dcc-951"
-LOCATION = "us-central1"
+LOCATION = "us"
 
 VALID_LABELS = {"setosa", "versicolor", "virginica"}
 
-vertexai.init(project=PROJECT_ID, location=LOCATION)
+client = genai.Client(vertexai=True, project=PROJECT_ID, location=LOCATION)
 
 
 def load_eval_set(path):
@@ -26,21 +23,30 @@ def load_eval_set(path):
     return records
 
 
-def extract_species(raw_output, is_v2):
-    """Normalize a model's raw text output into a species label, or None
-    if it doesn't match any valid species (a format-compliance failure)."""
-    text = raw_output.strip().lower()
-    if is_v2:
-        # v2 expects "This is Iris setosa." -> pull out the last word, strip punctuation
-        text = text.rstrip(".").split()[-1] if text else ""
-    for label in VALID_LABELS:
-        if label == text:
-            return label
-    return None
+def extract_species(raw_output):
+    """Exact-match only: anything else (explanations, markdown, extra
+    words) counts as a format-compliance failure, per the assignment's
+    definition."""
+    text = raw_output.strip().lower().rstrip(".")
+    return text if text in VALID_LABELS else None
 
 
-def evaluate(endpoint_resource_name, eval_path, is_v2, label):
-    model = GenerativeModel(endpoint_resource_name)
+import re
+
+IRIS_PATTERN = re.compile(r"iris[\s\-]+\**(setosa|versicolor|virginica)", re.IGNORECASE)
+
+
+def extract_species_loose(raw_output):
+    """Looser check: find the model's stated conclusion, matching the
+    'Iris <species>' phrasing it consistently uses (e.g. 'classified as
+    **Iris setosa**'), rather than scanning for any mention of a species
+    name (which fails when the response also lists other species while
+    explaining the classification)."""
+    match = IRIS_PATTERN.search(raw_output)
+    return match.group(1).lower() if match else None
+
+
+def evaluate(endpoint, eval_path, is_v2, label):
     records = load_eval_set(eval_path)
 
     results = []
@@ -50,17 +56,24 @@ def evaluate(endpoint_resource_name, eval_path, is_v2, label):
         if is_v2:
             true_label = true_label.rstrip(".").split()[-1]
 
-        response = model.generate_content(prompt)
-        raw_output = response.text
-        predicted = extract_species(raw_output, is_v2)
+        response = client.models.generate_content(
+            model=endpoint,
+            contents=[types.Content(role="user", parts=[types.Part.from_text(text=prompt)])],
+        )
+        raw_output = response.text or ""
+        predicted = extract_species(raw_output)
+        loose_predicted = extract_species_loose(raw_output)
+        loose_correct = loose_predicted == true_label
 
         results.append({
             "true": true_label,
             "predicted": predicted,
+            "loose_predicted": loose_predicted,
             "raw_output": raw_output,
             "compliant": predicted is not None,
+            "loose_correct": loose_correct,
         })
-        time.sleep(0.5)  # gentle rate limiting
+        time.sleep(0.5)
 
     df = pd.DataFrame(results)
 
@@ -71,21 +84,24 @@ def evaluate(endpoint_resource_name, eval_path, is_v2, label):
 
     per_class = {}
     for species in VALID_LABELS:
-        tp = ((compliant_df["true"] == species) & (compliant_df["predicted"] == species)).sum()
-        fp = ((compliant_df["true"] != species) & (compliant_df["predicted"] == species)).sum()
-        fn = ((compliant_df["true"] == species) & (compliant_df["predicted"] != species)).sum()
+        tp = ((df["true"] == species) & (df["loose_predicted"] == species)).sum()
+        fp = ((df["true"] != species) & (df["loose_predicted"] == species)).sum()
+        fn = ((df["true"] == species) & (df["loose_predicted"] != species)).sum()
         precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
         recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         per_class[species] = {"precision": precision, "recall": recall}
 
+    loose_accuracy = df["loose_correct"].mean()
+
     print(f"\n=== {label} ===")
-    print(f"Format compliance: {format_compliance:.3f}")
-    print(f"Accuracy (on compliant responses): {accuracy:.3f}")
+    print(f"Format compliance (strict, exact label only): {format_compliance:.3f}")
+    print(f"Accuracy on compliant responses: {accuracy:.3f}")
+    print(f"Loose accuracy (correct species mentioned anywhere): {loose_accuracy:.3f}")
     for species, m in per_class.items():
         print(f"  {species:12s} precision={m['precision']:.3f}  recall={m['recall']:.3f}")
 
     df.to_csv(f"eval_results_{label}.csv", index=False)
-    return {"label": label, "format_compliance": format_compliance, "accuracy": accuracy, "per_class": per_class}
+    return {"label": label, "format_compliance": format_compliance, "accuracy": accuracy, "loose_accuracy": loose_accuracy, "per_class": per_class}
 
 
 if __name__ == "__main__":
