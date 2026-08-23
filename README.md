@@ -1,130 +1,138 @@
-# Week 9 — Explainability, Fairness, and Drift in the IRIS Pipeline
+# Week 10 — From MLOps to LLMOps: Fine-Tuning Gemini on the IRIS Pipeline
 
-**Branch:** `week_9`
+**Branch:** `week_10`
 **Roll number:** 23f1000932
-**Model card:** `MODEL_CARD.md`
+**Base model:** `gemini-3.5-flash`
 
 ## Why this week matters
 
-Week 8 secured the pipeline against deliberate data poisoning. But a model
-can be perfectly secure and still be untrustworthy — it might rely on
-features in ways nobody actually verified, perform worse for some groups
-than others, or quietly degrade as real-world data drifts away from what
-it was trained on. This week is about making the model's behavior
-legible: explaining individual predictions with SHAP, auditing for
-performance gaps across groups with Fairlearn, detecting when incoming
-data no longer matches the training distribution, and documenting all of
-it in a model card so the whole picture is accountable, not just the
-accuracy number.
+Every prior week assumed a traditional ML model — you write the training
+code, you own every parameter, you control the exact output format. LLMs
+change that: you start from a foundation model someone else pretrained,
+adapt it with a comparatively tiny dataset, and the interface is
+text-in/text-out rather than a fixed schema. This week applies the same
+operational discipline (versioning, evaluation, comparison) to that
+different lifecycle — fine-tuning Gemini on two representations of the
+same IRIS classification task and measuring what changes.
 
 ## What was built (file by file)
 
 | File | Purpose |
 |---|---|
-| `add_location.py` | Adds a `location` column (randomly 0 or 1) to a copy of the IRIS dataset, saved as `data/iris_with_location.csv`. Used only as a sensitive attribute for the fairness audit — never as a training feature. |
-| `fairness_audit.py` | Trains the model on the original 4 features only, then uses Fairlearn's `MetricFrame` to break accuracy/precision/recall down by `location` group and report the gap between them. |
-| `shap_analysis.py` | Uses SHAP's `TreeExplainer` on the trained model to generate a summary plot per class (`shap_summary_setosa.png`, `_versicolor.png`, `_virginica.png`), showing which features drive each prediction and in which direction. |
-| `drift_detection.py` | Simulates a "production" dataset by shifting `petal_length` up by 1.5cm, then runs a Kolmogorov-Smirnov test per feature to statistically confirm which features actually drifted. Outputs `drift_results.csv` and a 4-panel distribution comparison plot (`drift_distributions.png`). |
-| `MODEL_CARD.md` | Structured documentation covering intended use, training data (including the sensitive attribute), performance overall and by group, explainability findings, known limitations, and fairness considerations. |
-| `data/iris_with_location.csv`, `data/iris_production_simulated.csv` | The two new dataset variants this week, DVC-tracked the same way `iris.csv` already was. |
+| `prepare_v1_raw.py` | Converts `data/iris.csv` into JSONL with raw feature values as the input text (`"sepal_length: 5.1, ..."`) and the bare species name as output. |
+| `prepare_v2_description.py` | Converts the same data into natural-language JSONL (`"A flower specimen has a sepal length of..."`) with a full-sentence output (`"This is Iris setosa."`). |
+| `split_train_eval.py` | Splits both JSONL versions 80/20 using the same stratified seed as every prior week, so v1 and v2 share identical rows in train vs. eval — required for a fair comparison. |
+| `convert_to_gemini_format.py` | Converts the assignment's `input_text`/`output_text` schema into the `contents`/`role`/`parts` structure Vertex AI's current Gemini tuning actually requires. |
+| `evaluate_models.py` | Calls both tuned model endpoints against their held-out eval sets and computes format compliance (strict), accuracy on compliant responses, loose accuracy (correct species stated anywhere), and per-class precision/recall. |
+| `data/iris_v1_*.jsonl`, `data/iris_v2_*.jsonl` | Raw and Gemini-format train/eval files for both representations, DVC-tracked and uploaded to `gs://23f1000932-mlops-week1/week10-llmops/`. |
+| `eval_results_v1_raw.csv`, `eval_results_v2_description.csv`, `evaluation_summary.csv` | Per-row and summary evaluation output. |
 
 ## Step-by-step summary
 
-### Task 1 — Introduce the location attribute
-Wrote `add_location.py` to create a copy of the dataset with a new
-`location` column, randomly assigned 0 or 1 per row using a fixed seed.
-Split came out 94/86 — close to balanced. Critically, `location` is added
-to a *separate* CSV (`iris_with_location.csv`), not merged into the
-original `iris.csv`, so nothing from earlier weeks that depends on the
-clean dataset is affected. It is never included in the feature list used
-to train the model — it exists purely so later analysis can check whether
-the model's predictions are equally accurate across the two groups.
+### Task 1 & 2 — Prepare v1 (raw) and v2 (natural language) formats
+Wrote both conversion scripts exactly matching the assignment's example
+formats, split each into 144 train / 36 eval rows (same row indices
+across both versions), and uploaded all four files to GCS.
 
-### Task 2 — Assess fairness with Fairlearn
-Wrote `fairness_audit.py`, training the same architecture as previous
-weeks (`DecisionTreeClassifier`, `max_depth=3`) on the four real
-features, then passing `location` as the `sensitive_features` argument to
-Fairlearn's `MetricFrame` alongside accuracy, precision, and recall.
-Results:
+### Task 3 — Fine-tune two Gemini model versions on Vertex AI
+Submitted two supervised fine-tuning jobs via Vertex AI Studio, both on
+`gemini-3.5-flash`, both with identical hyperparameters (3 epochs,
+learning rate multiplier 1.0, default adapter size) — the only variable
+between them is the training data representation. Both succeeded:
 
-| Group | Accuracy | Precision | Recall |
-|---|---|---|---|
-| Overall | 94.4% | 95.2% | 94.9% |
-| location = 0 | 100.0% | 100.0% | 100.0% |
-| location = 1 | 91.3% | 91.7% | 92.6% |
+| Model | Validation accuracy (during tuning) |
+|---|---|
+| v1 (raw features) | ~0.851 |
+| v2 (natural language) | ~0.686 |
 
-There's an 8.7-point accuracy gap between groups. Since `location` was
-assigned completely at random and has no relationship to the actual
-flower measurements, this gap is sampling noise from a small eval set (36
-rows split across two groups) rather than a real fairness problem — a
-useful contrast to Week 8, where the gaps we measured were driven by an
-actual injected effect (poisoning), not chance.
+### Task 4 — Evaluate & compare model versions
+Ran both tuned endpoints against their 36-row eval sets. Two metrics
+were tracked: **strict format compliance** (does the response consist of
+exactly the species name, per the assignment's definition) and **loose
+accuracy** (is the correct species stated anywhere in the response, via
+the pattern the model consistently used: "classified as **Iris
+<species>**"). Results, identical for both models:
 
-### Task 3 — Generate SHAP summary plots and explain virginica
-Wrote `shap_analysis.py` using SHAP's `TreeExplainer` (fast and exact for
-tree-based models), generating one summary plot per class. Reading the
-virginica plot:
-- **`petal_width` is by far the most influential feature** — high values
-  (red/pink dots) push strongly toward virginica (SHAP values around
-  +0.47 to +0.65), while low values (blue dots) push away (around −0.3).
-- **`petal_length` is the second most influential**, with the same
-  pattern at a smaller scale.
-- **`sepal_width` and `sepal_length` barely matter** — nearly all their
-  SHAP values sit at zero, meaning the tree essentially ignores them for
-  this decision.
-- Values cluster into discrete groups rather than a smooth gradient
-  because this is a decision tree with hard split thresholds, not a
-  continuous model — SHAP reflects that structure directly.
+| Metric | v1 (raw) | v2 (description) |
+|---|---|---|
+| Format compliance (strict) | 0.000 | 0.000 |
+| Loose accuracy | 1.000 | 1.000 |
+| Per-class precision/recall (all 3 classes) | 1.000 / 1.000 | 1.000 / 1.000 |
 
-### Task 4 — Detect data drift
-Wrote `drift_detection.py`, simulating a production dataset by shifting
-only `petal_length` up by 1.5cm — a stand-in for something like a new
-growing region or season — while leaving the other three features
-untouched. Ran a two-sample Kolmogorov-Smirnov test per feature:
+**Which version performed better, and why:** neither — both tied
+exactly. Both models correctly identify the species in every single
+eval example when read for content, and both fail every single
+strict-format check. The bottleneck this week wasn't the training data
+representation at all; it was Gemini's default explanatory response
+style overriding the terse single-word completions the training data
+demonstrated. During tuning itself, v1 showed meaningfully higher
+validation accuracy (0.851 vs 0.686) than v2 — suggesting the raw
+feature format was easier for the model to fit during training — but
+that gap disappeared entirely once both were evaluated on actual
+correctness rather than the tuning job's own accuracy metric, since both
+ultimately reason their way to the right answer regardless of which
+input format they were trained on.
 
-| Feature | KS statistic | p-value | Drifted? |
-|---|---|---|---|
-| sepal_length | 0.0000 | 1.000000 | No |
-| sepal_width | 0.0000 | 1.000000 | No |
-| petal_length | 0.4444 | 0.000000 | **Yes** |
-| petal_width | 0.0000 | 1.000000 | No |
-
-Clean result: only the feature that was actually shifted gets flagged.
-This is **data drift, not concept drift** — the relationship between
-petal length and species hasn't changed, only the input distribution
-has. The real risk for a deployed model is that it would see petal
-lengths outside anything in its training data and, per the Task 3 SHAP
-findings, likely get skewed toward predicting virginica regardless of
-the sample's true species, since the model associates large petal
-measurements strongly with that class.
-
-### Task 5 (optional) — Model card
-Wrote `MODEL_CARD.md`, covering intended use, training data (including
-the location sensitive attribute), overall and by-group performance,
-the SHAP explainability findings, known limitations (small dataset,
-sensitivity to drift, no poisoning defenses at inference time, near-total
-reliance on two of four features), and fairness considerations for any
-future re-audit against a real sensitive attribute.
+### Task 5 (optional) — Automated evaluation in CI
+Not implemented this week. Given the debugging required just to get a
+single evaluation run working correctly (see below), and that each
+evaluation run makes 72 real billed inference calls against live
+endpoints, adding this as an automatic on-every-push CI step was judged
+not worth the ongoing cost for a course assignment pipeline that isn't
+actually being iterated on daily.
 
 ## Errors encountered and fixes
 
-- **CI failed on `dvc pull`** the first time each new dataset was
-  pushed, with `ERROR: failed to pull data from the cloud - Checkout
-  failed for following targets`. Same root cause as a Week 8 incident:
-  `dvc add` + `git commit` only commits the `.dvc` pointer file, not the
-  underlying data — the actual data needs a separate `dvc push` to reach
-  the GCS remote. Fixed by running `dvc push` after each `dvc add`, which
-  resolved it on the next CI run.
+- **First tuning job failed instantly**: `Converting from
+  'VertexTextBison' to 'GenerateContent' dataset format is currently not
+  supported for this model.` The assignment's example JSONL format
+  (`input_text`/`output_text`) matches the older PaLM/Bison tuning
+  schema, not what current Gemini models on Vertex AI expect. Fixed by
+  writing `convert_to_gemini_format.py` to transform the data into the
+  `contents: [{role, parts: [{text}]}]` structure Gemini tuning actually
+  requires, while keeping the original files as-is since they match the
+  assignment's literal spec.
+- **Extensive endpoint-calling failures during Task 4**: the
+  `google-cloud-aiplatform` SDK's `GenerativeModel` and `Endpoint`
+  classes both rejected every location value tried (`us-central1`,
+  `us`, `global`) with a mix of `ValueError` (unsupported region),
+  `400 BadRequest` (wrong location for this endpoint), and `404 NotFound`
+  (right location, but wrong API surface) — despite the tuning job's own
+  API record confirming the endpoint's true location as `us` and the ID
+  as correct. Root cause: tuned Gemini endpoints deployed via Vertex AI
+  Studio are called through the newer `google-genai` SDK
+  (`from google import genai`, `vertexai=True`), not the classic
+  `aiplatform.Endpoint`/`GenerativeModel` path — confirmed by pulling the
+  exact working code sample from the Studio "Test" panel's "Code" button
+  rather than continuing to guess host/region combinations. Fixed by
+  rewriting `evaluate_models.py` to use `genai.Client`.
+- **0% format compliance investigated, not "fixed"**: initial evaluation
+  runs returned exactly 0.000 accuracy for both models across the board,
+  which looked like a bug. Inspecting the raw responses showed the model
+  was answering correctly every time, just wrapped in a full markdown
+  explanation ("Based on the measurements provided, this flower is
+  classified as **Iris setosa**...") instead of the bare label the
+  training data taught. This is a real, intended LLM-specific failure
+  mode per the assignment's own definition of format compliance, not a
+  bug — added a secondary "loose accuracy" metric (regex-matching the
+  model's stated conclusion) to separately measure underlying
+  correctness alongside the strict compliance number the assignment
+  requires.
 
 ## How to reproduce
 
 ```bash
 # From the repo root, on the Vertex AI Workbench terminal
-python3 add_location.py
-python3 fairness_audit.py
-python3 shap_analysis.py
-python3 drift_detection.py
+python3 prepare_v1_raw.py
+python3 prepare_v2_description.py
+python3 split_train_eval.py
+python3 convert_to_gemini_format.py
 
-# Push any new/updated DVC-tracked data to the remote
-dvc push
+# Upload to GCS, then submit both tuning jobs via the Vertex AI Studio
+# console (Model details: gemini-3.5-flash, us-central1, 3 epochs,
+# learning rate multiplier 1.0; Tuning dataset: existing GCS files)
+
+# Once both jobs succeed, fill in their endpoint resource names in
+# evaluate_models.py, then:
+python3 evaluate_models.py
 ```

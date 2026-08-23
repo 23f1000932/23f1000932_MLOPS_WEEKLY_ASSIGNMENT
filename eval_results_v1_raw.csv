@@ -1,0 +1,253 @@
+true,predicted,loose_predicted,raw_output,compliant,loose_correct
+virginica,,virginica,"Based on these measurements, this flower is classified as **Iris virginica**.
+
+### Explanation:
+In the classic Fisher's Iris dataset, this exact set of measurements (sepal length: 6.3, sepal width: 2.8, petal length: 5.1, petal width: 1.5) corresponds to **sample #133**, which is recorded as **Iris virginica**. 
+
+While a petal width of 1.5 cm and petal length of 5.1 cm sit right on the boundary between *Iris versicolor* and *Iris virginica*, the longer petal length (greater than 4.8 cm) and the overall proportions strongly characteristic of *Iris virginica* tip the classification to this species.",False,True
+setosa,,setosa,"Based on the measurements provided, this flower is classified as **Iris setosa**. 
+
+Here is why:
+* **Petal Length (1.3 cm) and Petal Width (0.2 cm):** *Iris setosa* is well-known for having much smaller, narrower petals compared to the other two species (*Iris versicolor* and *Iris virginica*). In the classic Iris dataset, a petal length under 2.0 cm and a petal width under 0.6 cm almost always indicate a Setosa.
+* **Sepal Length (4.4 cm) and Sepal Width (3.2 cm):** These dimensions are also highly characteristic of *Iris setosa*, which tends to have shorter but relatively wide sepals.",False,True
+setosa,,setosa,"Based on the measurements provided, this flower belongs to the species **_Iris setosa_**. 
+
+Here is why:
+* **Petal Length (~1.46 cm) and Petal Width (~0.16 cm):** These are extremely small, which is the defining characteristic of *Iris setosa*. The other two species (*Iris versicolor* and *Iris virginica*) have much larger petals (typically > 3.0 cm in length and > 1.0 cm in width).
+* **Sepal Length (~5.15 cm) and Sepal Width (~2.98 cm):** These measurements are also very typical for *Iris setosa*.",False,True
+versicolor,,versicolor,"Based on the measurements provided, this flower is classified as **_Iris versicolor_** (Versicolor iris). 
+
+### Why?
+In the classic Iris flower dataset, the three species (*setosa*, *versicolor*, and *virginica*) can be distinguished primarily by their petal measurements:
+
+* **_Iris setosa_** has very small petals (petal length < 2.0 cm, width < 0.6 cm).
+* **_Iris virginica_** has large petals (typically petal length > 4.8 cm, width > 1.7 cm).
+* **_Iris versicolor_** lies in the middle. Your specimen's petal length of **4.0 cm** and petal width of **1.3 cm** are classic indicators of *Iris versicolor*.",False,True
+virginica,,virginica,"Based on the measurements provided, this flower is classified as **Iris virginica**. 
+
+In the classic Iris flower dataset, this is an exact match for one of the recorded samples:
+* **Species:** *Iris virginica*
+* **Sepal Length:** 6.1 cm
+* **Sepal Width:** 3.0 cm
+* **Petal Length:** 4.9 cm
+* **Petal Width:** 1.8 cm
+
+### Why this classification?
+While there is some overlap between *Iris versicolor* and *Iris virginica*, a **petal width of 1.8 cm** and a **petal length of 4.9 cm** are strong indicators of *Iris virginica*, as *versicolor* petals are typically shorter (usually under 4.5 cm) and narrower (usually under 1.5 cm).",False,True
+versicolor,,versicolor,"Based on the measurements provided, this flower is classified as **Iris versicolor** (*Iris-versicolor*). 
+
+Here is why:
+* **Petal length (4.7 cm)** and **Petal width (1.6 cm)** are the most distinguishing features. 
+* *Iris setosa* has much smaller petals (typically < 2 cm long and < 0.6 cm wide).
+* *Iris virginica* typically has larger petals (usually > 4.8 cm long and > 1.8 cm wide). 
+
+These exact measurements (`6.3, 3.3, 4.7, 1.6`) correspond to an actual sample of **Iris versicolor** in the famous Fisher's Iris dataset.",False,True
+setosa,,setosa,"Based on the measurements provided, this flower belongs to the species **Iris setosa**. 
+
+Here is why:
+* **Petal Length (1.3 cm)** and **Petal Width (0.2 cm)** are extremely small, which is the defining characteristic of *Iris setosa* compared to *Iris versicolor* and *Iris virginica* (which have much larger petals).
+* These exact measurements represent a real data point from the famous **Fisher's Iris dataset** (specifically, sample #39 or #43 depending on the dataset version).",False,True
+virginica,,virginica,"Based on the measurements provided, this flower is classified as **Iris virginica**. 
+
+### Reasoning:
+* **Petal Length (5.3 cm):** *Iris virginica* typically has the longest petals, usually ranging from 4.5 cm to 6.9 cm (compared to *Iris versicolor* which rarely exceeds 5.0 cm and *Iris setosa* which is under 2.0 cm).
+* **Petal Width (1.9 cm):** This is also characteristic of *Iris virginica*, which generally has petal widths between 1.4 cm and 2.5 cm.",False,True
+virginica,,virginica,"Based on the measurements provided, this flower is classified as **Iris virginica** (Virginica). 
+
+### Reasoning:
+* **Petal Width (1.8 cm):** This is a key discriminator. Iris-setosa has very small petal widths (usually < 0.6 cm), Iris-versicolor typically has medium petal widths (1.0 to 1.7 cm), and Iris-virginica typically has larger petal widths (often 1.8 cm or greater).
+* **Petal Length (4.9 cm):** This also points strongly to Virginica, as Versicolor petals rarely exceed 4.5–4.8 cm, whereas Virginica petals are generally longer than 4.5 cm.
+
+In fact, these exact measurements (**6.3, 2.7, 4.9, 1.8**) correspond to an actual sample of **Iris-virginica** from the famous Fisher's Iris dataset.",False,True
+virginica,,virginica,"Based on the measurements provided, this flower belongs to the species **Iris virginica** (Virginica). 
+
+### Why?
+In the classic Iris flower dataset, the three species are generally distinguished by their petal sizes:
+* **Iris setosa:** Very small petals (length < 2 cm, width < 0.6 cm).
+* **Iris versicolor:** Medium-sized petals (length 3.0–5.1 cm, width 1.0–1.8 cm).
+* **Iris virginica:** Large petals (length 4.5–6.9 cm, width 1.4–2.5 cm).
+
+Your sample has a **petal length of 5.8 cm** and a **petal width of 1.8 cm**, which strongly places it in the *Iris virginica* category. In fact, these exact measurements correspond to an actual record of *Iris virginica* in the benchmark Iris dataset.",False,True
+virginica,,virginica,"Based on the measurements provided, this flower is classified as **_Iris virginica_**. 
+
+### Explanation:
+* **Petal Length (5.6 cm):** This is the strongest indicator. *Iris setosa* has very short petals (usually under 2 cm), and *Iris versicolor* petals rarely exceed 5.1 cm. A petal length of 5.6 cm is characteristic of *Iris virginica*.
+* **Petal Width (1.4 cm):** While 1.4 cm is on the lower end for *Iris virginica* (which typically ranges from 1.5 cm to 2.5 cm), it is still well within the recorded range for this species. 
+
+In fact, these exact measurements (**6.1, 2.6, 5.6, 1.4**) correspond to an actual specimen of **_Iris virginica_** from the famous Fisher's Iris dataset.",False,True
+setosa,,setosa,"Based on the measurements provided, this flower is classified as **Iris setosa**. 
+
+### Reasoning:
+In the classic Iris flower dataset, the three species (*Iris setosa*, *Iris versicolor*, and *Iris virginica*) are primarily distinguished by their petal measurements:
+* **Iris setosa** typically has very small petals (petal length < 2.0 cm and petal width < 0.6 cm). 
+* Your sample has a **petal length of 1.4 cm** and a **petal width of 0.2 cm**, which are classic characteristics of the *Setosa* species.",False,True
+versicolor,,versicolor,"Based on the measurements provided, this flower is classified as **Iris versicolor** (Versicolor iris). 
+
+### Analysis:
+* **Petal Length (4.7 cm) and Petal Width (1.4 cm):** These intermediate measurements are characteristic of *Iris versicolor*. 
+  * *Iris setosa* has much smaller petals (typically under 2 cm long and 0.6 cm wide).
+  * *Iris virginica* typically has larger petals (usually over 4.8 cm long and 1.5 cm wide).
+* **Dataset Match:** These exact measurements (`6.1, 2.9, 4.7, 1.4`) correspond to an actual sample of **Iris versicolor** in the famous Fisher's Iris dataset.",False,True
+virginica,,virginica,"Based on the measurements provided, this flower is classified as **Iris virginica**. 
+
+Here is a breakdown of why:
+
+* **Petal Length (4.5 cm) and Petal Width (1.7 cm):** These measurements are too large for *Iris setosa* (which has much smaller petals). While they fall in the borderline region between *Iris versicolor* and *Iris virginica*, a petal width of 1.7 cm strongly points toward **virginica**.
+* **Exact Dataset Match:** In the famous Fisher's Iris flower dataset, the exact data point `[4.9, 2.5, 4.5, 1.7]` is record number 107, which is officially classified as **Iris virginica**.",False,True
+setosa,,setosa,"Based on the measurements provided, this flower is classified as **Iris setosa**. 
+
+Here is why:
+* **Petal Length (1.5 cm) and Petal Width (0.2 cm):** These are very small, which is the key distinguishing feature of *Iris setosa*. Both *Iris versicolor* and *Iris virginica* have much larger petals (typically length > 3.0 cm and width > 1.0 cm).
+* **Sepal Length (5.0 cm) and Sepal Width (3.4 cm):** These proportions (relatively short but quite wide sepals) are also highly characteristic of the *setosa* species.",False,True
+virginica,,virginica,"Based on the measurements provided, this flower is classified as **Iris virginica**. 
+
+### Classification Details:
+* **Petal Length (5.6 cm)** and **Petal Width (2.4 cm)** are relatively large. In the Iris dataset:
+  * *Iris setosa* has very small petals (length < 2 cm, width < 0.6 cm).
+  * *Iris versicolor* has medium-sized petals (length 3.0–5.1 cm, width 1.0–1.8 cm).
+  * *Iris virginica* has the largest petals (length 4.5–6.9 cm, width 1.4–2.5 cm).
+
+These exact coordinates (`6.3, 3.4, 5.6, 2.4`) correspond to a specific sample of **Iris virginica** in the famous Fisher's Iris flower dataset.",False,True
+versicolor,,versicolor,"Based on the measurements provided, this flower is classified as **Iris versicolor**. 
+
+Here is how these measurements compare to the typical characteristics of the three Iris species in the famous Iris dataset:
+
+* **Petal Length (4.0 cm) and Petal Width (1.3 cm):** These are the most defining features. 
+  * *Iris setosa* has much smaller petals (typically < 2 cm long and < 0.6 cm wide).
+  * *Iris virginica* has larger petals (typically > 4.5 cm long and > 1.4 cm wide).
+  * *Iris versicolor* falls right in the middle, typically having a petal length between 3.0 to 5.1 cm and a petal width between 1.0 to 1.8 cm.
+* **Sepal Length (5.5 cm) and Sepal Width (2.5 cm):** These also align perfectly with the average ranges for *Iris versicolor*.",False,True
+versicolor,,versicolor,"Based on the measurements provided, this flower is classified as **Iris versicolor** (Versicolor Iris). 
+
+Here is why:
+* **Petal Length (4.5 cm) and Petal Width (1.5 cm):** These measurements are too large for *Iris setosa* (which typically has petals under 2 cm long and 0.6 cm wide) but are on the lower-to-middle range for *Iris versicolor*. *Iris virginica* generally has larger petals (usually over 4.8 cm long and 1.8 cm wide).
+* **Sepal Length (6.4 cm) and Sepal Width (3.2 cm):** These proportions strongly align with the typical profile of *Iris versicolor*.
+
+In fact, **`[6.4, 3.2, 4.5, 1.5]`** is an exact data point from the famous Fisher's Iris dataset, where it is labeled as **Iris-versicolor**.",False,True
+versicolor,,versicolor,"Based on the measurements provided, this flower is classified as **Iris versicolor**. 
+
+### Breakdown of the classification:
+* **Petal Length (4.2 cm)** and **Petal Width (1.3 cm)** are the most distinguishing features. 
+  * *Iris setosa* has much smaller petals (usually < 2 cm long and < 0.6 cm wide).
+  * *Iris virginica* has larger petals (usually > 4.5 cm long and > 1.4 cm wide).
+  * *Iris versicolor* typically falls in the middle range (petal length of 3.0–5.1 cm and width of 1.0–1.8 cm), which perfectly matches your measurements.",False,True
+versicolor,,versicolor,"Based on the measurements provided, this flower is classified as **Iris versicolor** (Versicolor Iris). 
+
+Here is why:
+* **Petal Length (4.5 cm) and Petal Width (1.5 cm):** These are the most distinguishing features. 
+  * *Iris setosa* has much smaller petals (length < 2 cm, width < 0.6 cm).
+  * *Iris virginica* typically has larger petals (length > 4.8 cm, width > 1.8 cm).
+  * *Iris versicolor* falls right in the middle, typically having a petal length of 3.0–5.1 cm and a petal width of 1.0–1.8 cm.
+* **Database Match:** These exact measurements (`5.6, 3.0, 4.5, 1.5`) match an actual sample of **Iris versicolor** from the famous Fisher's Iris flower dataset.",False,True
+setosa,,setosa,"Based on the measurements provided, this specimen is classified as ***Iris setosa***. 
+
+### Why?
+* **Petal Length (1.7 cm) and Petal Width (0.3 cm):** These are the most defining characteristics. *Iris setosa* typically has very small petals (length < 2 cm, width < 0.6 cm), whereas *Iris versicolor* and *Iris virginica* have much larger petals.
+* **Sepal Width (3.8 cm):** *Iris setosa* tends to have relatively wide sepals compared to the other two species.",False,True
+setosa,,setosa,"Based on the measurements provided, this data point corresponds to the **Iris setosa** species. 
+
+### Why?
+In the classic Iris flower dataset:
+* **Iris setosa** is characterized by very small petals (typically, petal length < 2.0 cm and petal width < 0.6 cm).
+* Your data has a **petal length of ~1.44 cm** and a **petal width of ~0.04 cm**, which strongly and uniquely identifies it as *Iris setosa*.",False,True
+versicolor,,versicolor,"Based on the measurements you provided, this flower is classified as **Iris versicolor** (specifically from the famous Iris flower dataset). 
+
+Here is why:
+* **Petal Length (4.5 cm) and Petal Width (1.5 cm):** These are the most defining features. 
+  * *Iris setosa* has much smaller petals (typically under 2 cm long).
+  * *Iris virginica* typically has larger, wider petals (usually over 4.8 cm long and 1.8 cm wide).
+  * *Iris versicolor* falls right in the middle, typically having petal lengths between 3.0–5.1 cm and widths between 1.0–1.8 cm.
+
+In fact, **`5.4, 3.0, 4.5, 1.5`** is an exact data point (Sample #85) in Fisher's classic Iris dataset, officially classified as **Iris-versicolor**.",False,True
+versicolor,,versicolor,"Based on the measurements provided, this flower is classified as **Iris-versicolor**. 
+
+Here is the breakdown of why:
+* **Sepal Length (6.0 cm) & Sepal Width (3.4 cm):** These are typical for both *Iris-versicolor* and *Iris-virginica*.
+* **Petal Length (4.5 cm) & Petal Width (1.6 cm):** This is the key distinguishing factor. *Iris-setosa* has much smaller petals (typically under 2 cm long), while *Iris-virginica* tends to have larger, wider petals (usually over 1.7 cm wide and 4.8+ cm long). A petal length of 4.5 cm and width of 1.6 cm falls squarely in the typical range for **Iris-versicolor**.
+
+In the classic Fisher's Iris dataset, these exact measurements correspond to an actual sample of ***Iris versicolor***.",False,True
+setosa,,setosa,"Based on these measurements, this flower is classified as **_Iris setosa_**. 
+
+### Why?
+In the famous Iris flower dataset, the three species (*Setosa*, *Versicolor*, and *Virginica*) can be easily distinguished by their petal sizes:
+* **_Iris setosa_** has very small petals (typically petal length < 2.0 cm and petal width < 0.6 cm). 
+* Your sample has a **petal length of 1.7 cm** and a **petal width of 0.2 cm**, which fits the profile of *Iris setosa* perfectly.",False,True
+virginica,,virginica,"Based on the measurements provided, this flower is classified as **Iris virginica** (Virginica Iris). 
+
+Here is why:
+* **Petal Width (2.0 cm):** This is a strong indicator of *Iris virginica*, which typically has petal widths between 1.4 cm and 2.5 cm. *Iris versicolor* rarely exceeds 1.8 cm, and *Iris setosa* has much narrower petals (usually under 0.6 cm).
+* **Petal Length (5.2 cm):** This is also characteristic of *Iris virginica*, which generally has larger petals (4.5 cm to 6.9 cm) compared to *Iris versicolor* (3.0 cm to 5.1 cm).
+* **Sepal Length (6.5 cm) and Width (3.0 cm):** These larger dimensions are very typical for the robust *Iris virginica*.",False,True
+versicolor,,versicolor,"Based on the measurements provided, this flower is classified as **Iris versicolor**. 
+
+Here is the breakdown of why:
+* **Petal Length (4.1 cm)** and **Petal Width (1.3 cm)** are the most defining features. They fall directly into the average range for *Iris versicolor* (which typically has petal lengths between 3.0–5.1 cm and widths between 1.0–1.8 cm).
+* *Iris setosa* has much smaller petals (usually under 2 cm long), while *Iris virginica* generally has larger, wider petals (usually over 4.5 cm long and 1.4 cm wide).",False,True
+virginica,,virginica,"Based on the measurements provided, these features correspond to the famous **Iris flower dataset**. 
+
+Here is the analysis of your data points:
+* **Sepal Length:** 7.12 cm (Large)
+* **Sepal Width:** 3.02 cm (Medium)
+* **Petal Length:** 5.95 cm (Very long)
+* **Petal Width:** 1.60 cm (Medium-High)
+
+### Prediction:
+This flower is classified as **`Iris virginica`** (Virginica).
+
+### Why?
+* **Iris setosa** has very short petals (typically < 2 cm).
+* **Iris versicolor** has medium petals (typically 3.0 to 5.1 cm).
+* **Iris virginica** is characterized by the largest petals (typically 4.5 to 6.9 cm) and large sepals. Your petal length of **5.95 cm** and sepal length of **7.12 cm** are classic indicators of *Iris virginica*.",False,True
+setosa,,setosa,"Based on the measurements provided, this flower is classified as **Iris setosa**. 
+
+### Why?
+In the classic Iris flower dataset, the three species (*Setosa*, *Versicolor*, and *Virginica*) are easily distinguished by their petal sizes:
+* **Iris setosa** has very small petals (petal length typically < 2 cm and petal width < 0.6 cm) and relatively wide sepals.
+* Your sample has a **petal length of 1.5 cm** and a **petal width of 0.2 cm**, which are classic characteristics of *Iris setosa*.",False,True
+versicolor,,versicolor,"Based on the measurements provided, this specimen is classified as **Iris versicolor** (specifically, this is an exact data point from the famous Iris flower dataset). 
+
+Here is the breakdown of why:
+* **Petal Length (3.3 cm):** Too long for *Iris setosa* (typically < 2 cm) and too short for *Iris virginica* (typically > 4.5 cm).
+* **Petal Width (1.0 cm):** Fits perfectly in the range of *Iris versicolor* (typically 1.0 to 1.8 cm).",False,True
+setosa,,setosa,"Based on the measurements provided, this flower is classified as **Iris setosa**. 
+
+Here is why:
+* **Petal Length (1.0 cm) and Petal Width (0.2 cm):** These are extremely small, which is the most defining characteristic of the *Iris setosa* species. (Versicolor and Virginica have much larger petals, typically well over 3.0 cm in length and 1.0 cm in width).
+* **Sepal Length (4.6 cm) and Sepal Width (3.6 cm):** These dimensions represent a relatively short but very wide sepal, which is also highly characteristic of *Iris setosa*.",False,True
+virginica,,virginica,"Based on the measurements provided, this flower is classified as **Iris virginica**. 
+
+### Breakdown of the characteristics:
+* **Sepal Length (7.3 cm) & Sepal Width (2.9 cm):** Very large sepal length is highly characteristic of *Iris virginica*.
+* **Petal Length (6.3 cm) & Petal Width (1.8 cm):** These are very large petal measurements. *Iris setosa* has much smaller petals (under 2 cm long), and *Iris versicolor* typically has medium-sized petals (usually between 3 and 5 cm long). 
+
+This exact data point matches a real sample from the classic Fisher's Iris dataset, which is labeled as **Iris virginica**.",False,True
+virginica,,virginica,"Based on the measurements provided, this flower is classified as **Iris virginica** (specifically, this matches an actual data point from the famous Fisher's Iris dataset). 
+
+Here is why:
+* **Petal Length (6.7 cm) and Petal Width (2.0 cm):** These are very large, which is the defining characteristic of *Iris virginica* (whereas *Iris setosa* has very small petals, and *Iris versicolor* has medium-sized petals).
+* **Sepal Length (7.7 cm):** This is also on the upper limit for the species, which is typical for *virginica*.",False,True
+setosa,,setosa,"Based on the provided measurements, this flower is classified as **Iris setosa**.
+
+### Why?
+In the classic Iris dataset, **Iris setosa** is easily distinguished from the other two species (*Iris versicolor* and *Iris virginica*) by its small petals:
+* **Petal length (1.2 cm)** is very short (Setosa petals are typically under 2 cm).
+* **Petal width (0.2 cm)** is very narrow (Setosa petal widths are typically under 0.6 cm). 
+* **Sepal width (4.0 cm)** is also notably wide, which is highly characteristic of the *setosa* species.",False,True
+virginica,,virginica,"Based on the measurements provided, this flower is classified as **Iris virginica** (Virginica). 
+
+### Why?
+In the classic Iris dataset, the species are distinguished primarily by their petal measurements:
+* **Iris setosa**: Small petals (length < 2 cm, width < 0.8 cm)
+* **Iris versicolor**: Medium petals (length 3.0–5.0 cm, width 1.0–1.8 cm)
+* **Iris virginica**: Large petals (length > 4.5 cm, width > 1.4 cm)
+
+Your sample has a **petal length of 5.6 cm** and a **petal width of 2.2 cm**, which fits perfectly into the **Iris virginica** category. This exact combination of measurements (6.4, 2.8, 5.6, 2.2) is actually an exact data point representing *Iris virginica* in the famous Fisher's Iris dataset.",False,True
+versicolor,,versicolor,"Based on the measurements provided, this flower is classified as **Iris-versicolor** (Versicolor iris). 
+
+### Why?
+In the classic Iris dataset, the species are distinguished primarily by their petal measurements:
+* **Iris-setosa:** Petal length is typically very short (< 2.0 cm) and petal width is very narrow (< 0.6 cm).
+* **Iris-virginica:** Petal length is typically long (> 4.8 cm) and petal width is wide (> 1.5 cm).
+* **Iris-versicolor:** Falls in the middle, with a petal length typically between 3.0 cm and 5.0 cm, and a petal width between 1.0 cm and 1.8 cm. 
+
+Your sample's petal length of **3.3 cm** and petal width of **1.0 cm** place it firmly in the **Iris-versicolor** category. (In fact, these exact measurements correspond to sample #93 in the famous Fisher's Iris database).",False,True
